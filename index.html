@@ -11,6 +11,7 @@
 </head>
 <body>
 
+  <!-- ===== AUTH GATEWAY ===== -->
   <div id="gatewayLockoutOverlay" class="gateway-lockout active">
     <div class="gateway-modal">
       <div class="gateway-logo">Calculus<span>.</span></div>
@@ -28,6 +29,7 @@
     </div>
   </div>
 
+  <!-- ===== NAV ===== -->
   <nav class="nav">
     <div class="nav-logo">Calculus<span>.</span></div>
     <ul class="nav-links">
@@ -38,12 +40,13 @@
     </ul>
   </nav>
 
+  <!-- ===== DASHBOARD SCREEN ===== -->
   <div id="screenDashboard" class="screen active">
     <div class="dashboard">
       <div class="dash-hero">
         <div class="dash-eyebrow" id="userGreeting">Mental Arithmetic Training</div>
         <h1 class="dash-title">Train like a<br /><em>human calculator.</em></h1>
-        <p class="dash-sub">Five core disciplines. Infinite operational levels. No shortcuts. Your statistics and mastery progressions are actively tracked and updated in real-time within your account profile.</p>
+        <p class="dash-sub">Five core disciplines. Integer &amp; decimal modes. Infinite operational levels. Your statistics and mastery progressions are actively tracked and updated in real-time.</p>
       </div>
 
       <div class="stats-bar">
@@ -67,6 +70,30 @@
           <div class="stat-label">Study Time</div>
           <div class="stat-value" id="statTime">0m</div>
         </div>
+        <div class="stat-item">
+          <div class="stat-label">Day Streak</div>
+          <div class="stat-value accent" id="statDayStreak">0</div>
+        </div>
+      </div>
+
+      <!-- Today summary -->
+      <div class="today-bar" id="todayBar">
+        <div class="today-item">
+          <div class="today-label">Today's Questions</div>
+          <div class="today-val" id="todayQ">0</div>
+        </div>
+        <div class="today-item">
+          <div class="today-label">Today's Accuracy</div>
+          <div class="today-val" id="todayAcc">—</div>
+        </div>
+        <div class="today-item">
+          <div class="today-label">Today's Avg Speed</div>
+          <div class="today-val" id="todaySpeed">—</div>
+        </div>
+        <div class="today-item">
+          <div class="today-label">Sessions Today</div>
+          <div class="today-val" id="todaySessions">0</div>
+        </div>
       </div>
 
       <div class="section-title">Disciplines</div>
@@ -77,29 +104,52 @@
     </div>
   </div>
 
+  <!-- ===== PRACTICE SCREEN ===== -->
   <div id="screenPractice" class="screen">
     <div class="practice-screen">
-      
+
       <div class="subject-select-view" id="subjectSelectView">
         <button class="back-btn" onclick="window.showScreen('dashboard')">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M10 12L6 8l4-4" />
-          </svg>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 12L6 8l4-4" /></svg>
           Dashboard
         </button>
 
+        <!-- Step 1: Choose discipline -->
         <div id="noSubjectMsg">
           <h2 class="page-heading">Select an <em>operational core.</em></h2>
           <p class="page-subheading">Choose a baseline mathematical discipline to execute training loops.</p>
           <div class="subjects-grid" id="practiceSubjectsGrid"></div>
         </div>
 
-        <div id="levelSelectMsg" class="hidden">
+        <!-- Step 2: Choose Integer / Decimal -->
+        <div id="modeSelectMsg" class="hidden">
           <button class="back-btn" onclick="window.backToSubjectSelect()" style="margin-bottom:1.5rem">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M10 12L6 8l4-4" />
-            </svg>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 12L6 8l4-4" /></svg>
             Disciplines
+          </button>
+          <h2 class="page-heading" id="modeSelectTitle">—</h2>
+          <p class="page-subheading">Select a practice mode for this discipline.</p>
+          <div class="mode-selector">
+            <div class="mode-card" id="modeCardInteger" onclick="window.selectMode('integer')">
+              <div class="mode-icon">ℤ</div>
+              <div class="mode-name">Integer Mode</div>
+              <div class="mode-desc">Whole number arithmetic. Classic mental math drills across difficulty levels.</div>
+              <div class="mode-badge" id="modeBadgeInteger">—</div>
+            </div>
+            <div class="mode-card" id="modeCardDecimal" onclick="window.selectMode('decimal')">
+              <div class="mode-icon">𝜋</div>
+              <div class="mode-name">Decimal Mode</div>
+              <div class="mode-desc">Decimal precision training. At least one operand or the answer will be decimal.</div>
+              <div class="mode-badge" id="modeBadgeDecimal">—</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3: Choose level -->
+        <div id="levelSelectMsg" class="hidden">
+          <button class="back-btn" onclick="window.backToModeSelect()" style="margin-bottom:1.5rem">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 12L6 8l4-4" /></svg>
+            Mode Select
           </button>
           <h2 class="page-heading" id="levelSelectTitle">—</h2>
           <p class="page-subheading" id="levelSelectSub">—</p>
@@ -113,15 +163,19 @@
           <span class="meta-chip-val" id="metaSubject">—</span>
         </div>
         <div class="meta-chip">
+          <span class="meta-chip-label">Mode</span>
+          <span class="meta-chip-val" id="metaMode">—</span>
+        </div>
+        <div class="meta-chip">
           <span class="meta-chip-label">Level</span>
           <span class="meta-chip-val" id="metaLevel">—</span>
         </div>
         <div class="meta-chip">
-          <span class="meta-chip-label">Current Streak</span>
+          <span class="meta-chip-label">Streak</span>
           <span class="meta-chip-val" id="metaStreak">0</span>
         </div>
         <div class="meta-chip">
-          <span class="meta-chip-label">Session Score</span>
+          <span class="meta-chip-label">Score</span>
           <span class="meta-chip-val" id="metaScore">0/0</span>
         </div>
       </div>
@@ -140,7 +194,7 @@
           <div class="question-expr" id="questionExpr">—</div>
 
           <div class="answer-area">
-            <input class="answer-input" type="text" id="answerInput" placeholder="?" autocomplete="off" inputmode="numeric" />
+            <input class="answer-input" type="text" id="answerInput" placeholder="?" autocomplete="off" inputmode="decimal" />
             <div class="feedback-msg" id="feedbackMsg"></div>
             <button class="submit-btn" id="submitBtn" onclick="window.submitAnswer()">Submit Evaluation</button>
           </div>
@@ -153,29 +207,60 @@
     </div>
   </div>
 
+  <!-- ===== ANALYTICS SCREEN ===== -->
   <div id="screenAnalytics" class="screen">
     <div class="analytics">
       <div class="dash-hero">
         <div class="dash-eyebrow">Performance Analytics</div>
         <h1 class="dash-title">Engine <em>metrics.</em></h1>
-        <p class="dash-sub">Precision index, response metrics, and processing velocity mapped parameters.</p>
+        <p class="dash-sub">Precision index, response metrics, and processing velocity mapped parameters. One-year retention, stored locally.</p>
+      </div>
+
+      <!-- Time range tabs -->
+      <div class="analytics-tabs">
+        <button class="analytics-tab active" id="tabDaily"   onclick="window.switchAnalyticsTab('daily')">Daily</button>
+        <button class="analytics-tab"         id="tabWeekly"  onclick="window.switchAnalyticsTab('weekly')">Weekly</button>
+        <button class="analytics-tab"         id="tabMonthly" onclick="window.switchAnalyticsTab('monthly')">Monthly</button>
+        <button class="analytics-tab"         id="tabAllTime" onclick="window.switchAnalyticsTab('alltime')">All Time</button>
+      </div>
+
+      <!-- Date / Week / Month selectors -->
+      <div class="date-selector-row" id="dateSelectorRow">
+        <button class="date-nav-btn" onclick="window.shiftAnalyticsPeriod(-1)">&#8592;</button>
+        <div class="date-label" id="dateSelectorLabel">—</div>
+        <button class="date-nav-btn" onclick="window.shiftAnalyticsPeriod(1)">&#8594;</button>
+        <button class="date-nav-btn today-btn" onclick="window.goToTodayPeriod()">Today</button>
       </div>
 
       <div class="analytics-grid" id="analyticsTopGrid"></div>
 
+      <!-- Insights -->
+      <div id="insightsPanel" class="insights-panel"></div>
+
+      <!-- Trend chart -->
+      <div class="section-title">Accuracy &amp; Volume Trend</div>
+      <div class="perf-chart-wrap">
+        <div class="perf-chart-title" id="trendChartTitle">Last 20 Sessions — Accuracy %</div>
+        <div class="perf-chart">
+          <canvas class="chart-canvas" id="perfChart"></canvas>
+        </div>
+      </div>
+
       <div class="section-title">Discipline Matrices</div>
       <div class="subject-breakdown" id="subjectBreakdown"></div>
 
-      <div class="section-title">Historical Accuracy Trajectory</div>
-      <div class="perf-chart-wrap">
-        <div class="perf-chart-title">Success Percentage Distribution (Last 20 Runs)</div>
-        <div class="perf-chart">
-          <canvas class="chart-canvas" id="perfChart"></canvas>
+      <!-- Export buttons -->
+      <div class="export-row">
+        <div class="section-title" style="margin-bottom:0">Export Data</div>
+        <div class="export-btns">
+          <button class="export-btn" onclick="window.exportData('csv')">Export CSV</button>
+          <button class="export-btn" onclick="window.exportData('json')">Export JSON</button>
         </div>
       </div>
     </div>
   </div>
 
+  <!-- ===== RESULT OVERLAY ===== -->
   <div class="result-overlay" id="resultOverlay">
     <div class="result-status" id="resultStatus">—</div>
     <h2 class="result-heading" id="resultHeading">—</h2>
