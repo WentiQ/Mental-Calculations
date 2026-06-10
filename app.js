@@ -560,10 +560,22 @@ function bootExecutionSession(subjectId, level) {
   document.getElementById('metaStreak').textContent = 0;
   document.getElementById('metaScore').textContent = `0 / ${totalQuestionsNeeded}`;
 
+  // Fix 3: Safely preset the timer arc initialization values prior to UI rendering pipelines
+  const arc = document.getElementById("timerArc");
+  if (arc) {
+    const radius = 48;
+    const circumference = 2 * Math.PI * radius;
+    arc.style.strokeDasharray = circumference;
+    arc.style.strokeDashoffset = 0;
+  }
+
   executeDisplayLoop();
 }
 
 function executeDisplayLoop() {
+  // Fix 4: Output runtime tracking details to telemetry system
+  console.log("Question Started:", session.current + 1);
+
   const currentActiveQuestion = session.questions[session.current];
   const terminalCount = session.questions.length;
 
@@ -587,12 +599,24 @@ function executeDisplayLoop() {
 }
 
 function engageTimerSubsystem() {
+  // Fix 4: Send starting metric parameter boundaries into console trace
+  console.log("Starting Timer:", session.maxTime);
+
   clearInterval(session.timerInterval);
   session.timeLeft = session.maxTime;
-  synchronizeTimerGraphics();
+
+  // Fix 1: Explicitly evaluate frame output layer reference elements before handling intervals
+  const timerNumber = document.getElementById("timerNumber");
+  if (timerNumber) {
+    timerNumber.textContent = session.timeLeft;
+  }
 
   session.timerInterval = setInterval(() => {
     session.timeLeft--;
+
+    // Fix 1: Emit background diagnostic cycle ticks
+    console.log("Timer:", session.timeLeft);
+
     synchronizeTimerGraphics();
 
     if (session.timeLeft <= 0) {
@@ -603,23 +627,30 @@ function engageTimerSubsystem() {
 }
 
 function synchronizeTimerGraphics() {
-  const arcGraphic = document.getElementById('timerArc');
-  const frameCounter = document.getElementById('timerNumber');
-  
-  const arcRadius = 48;
-  const totalCircumference = 2 * Math.PI * arcRadius;
-  const currentRatio = session.timeLeft / session.maxTime;
-  const calculationOffset = totalCircumference * (1 - currentRatio);
+  // Fix 2: Wrap execution pipeline inside structured object node existence validation safeguards
+  const arcGraphic = document.getElementById("timerArc");
+  const frameCounter = document.getElementById("timerNumber");
 
-  arcGraphic.style.strokeDasharray = totalCircumference;
-  arcGraphic.style.strokeDashoffset = calculationOffset;
+  if (!frameCounter) return;
   frameCounter.textContent = session.timeLeft;
 
-  arcGraphic.className = 'timer-arc';
-  if (currentRatio <= 0.25) {
-    arcGraphic.classList.add('critical');
-  } else if (currentRatio <= 0.5) {
-    arcGraphic.classList.add('warning');
+  if (!arcGraphic) return;
+
+  const radius = 48;
+  const circumference = 2 * Math.PI * radius;
+
+  // Prevent programmatic exceptions if timer calculations generate numbers below zero
+  const ratio = Math.max(0, session.timeLeft / session.maxTime);
+
+  arcGraphic.style.strokeDasharray = circumference;
+  arcGraphic.style.strokeDashoffset = circumference * (1 - ratio);
+
+  arcGraphic.classList.remove("warning", "critical");
+
+  if (ratio <= 0.25) {
+    arcGraphic.classList.add("critical");
+  } else if (ratio <= 0.5) {
+    arcGraphic.classList.add("warning");
   }
 }
 
