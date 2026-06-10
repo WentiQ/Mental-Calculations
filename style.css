@@ -65,6 +65,82 @@ input {
 }
 
 /* ============================================================
+   MANDATORY ENTRY GATEWAY SCREEN PROTECTION
+   ============================================================ */
+.gateway-lockout {
+  position: fixed;
+  inset: 0;
+  background: #000000;
+  z-index: 1000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.gateway-lockout.active {
+  display: flex;
+}
+
+.gateway-modal {
+  background: var(--charcoal);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  max-width: 480px;
+  width: 100%;
+  padding: 3rem 2.5rem;
+  border-radius: var(--r-lg);
+  text-align: center;
+}
+
+.gateway-logo {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  color: var(--white);
+  margin-bottom: 1.5rem;
+}
+
+.gateway-logo span {
+  color: var(--accent-core);
+  font-style: italic;
+}
+
+.gateway-heading {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  color: var(--white);
+  margin-bottom: 1rem;
+  font-weight: 400;
+}
+
+.gateway-sub {
+  font-size: 0.88rem;
+  color: var(--mist);
+  line-height: 1.6;
+  margin-bottom: 2.5rem;
+  font-weight: 300;
+}
+
+.gateway-auth-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--white);
+  color: var(--black);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  width: 100%;
+  padding: 1rem 1.5rem;
+  border-radius: var(--r-sm);
+  transition: background var(--t-immediate);
+}
+
+.gateway-auth-btn:hover {
+  background: #E5E5E3;
+}
+
+/* ============================================================
    ROUTING APPLICATION LAYOUT PANELS
    ============================================================ */
 .screen {
@@ -106,6 +182,7 @@ input {
 
 .nav-links {
   display: flex;
+  align-items: center;
   gap: 0.5rem;
   list-style: none;
 }
@@ -125,6 +202,18 @@ input {
 .nav-links button.active {
   color: var(--white);
   background: rgba(255, 255, 255, 0.05);
+}
+
+.nav-links button.auth-nav-btn {
+  color: var(--white);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  margin-left: 0.5rem;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.nav-links button.auth-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 /* ============================================================
@@ -854,4 +943,46 @@ input {
 }
 
 .btn-primary {
-  background: var(--accent
+  background: var(--accent-core);
+  color: var(--white);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 1rem 3rem;
+  border-radius: var(--r-sm);
+  transition: background var(--t-immediate);
+}
+.btn-primary:hover { background: #648BB7; }
+
+.btn-secondary {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--cloud);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 1rem 2.5rem;
+  border-radius: var(--r-sm);
+  transition: color var(--t-immediate), border-color var(--t-immediate);
+}
+.btn-secondary:hover {
+  color: var(--white);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* ============================================================
+   RESPONSIVE DESIGN ADAPTATIONS
+   ============================================================ */
+@media (max-width: 768px) {
+  .nav { padding: 0 1.5rem; }
+  .dashboard, .analytics, .subject-select-view { padding: 100px 1.5rem 4rem; }
+  .session-meta { gap: 1.5rem; padding: 0.75rem 1rem; }
+  .result-stats { gap: 2rem; }
+}
+
+/* ============================================================
+   UTILITY FLAGS
+   ============================================================ */
+.hidden { display: none !important; }

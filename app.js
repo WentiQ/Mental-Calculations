@@ -3,6 +3,39 @@
  * PARAMETRIC CONFIGURATIONS AND STATIC META ARRAYS
  * ============================================================
  */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
+import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-analytics.js";
+import { 
+  getAuth, 
+  signInWithPopup, 
+  GoogleAuthProvider, 
+  signOut, 
+  onAuthStateChanged 
+} from "https://www.gstatic.com/firebasejs/12.14.0/firebase-auth.js";
+import { 
+  getFirestore, 
+  doc, 
+  getDoc, 
+  setDoc 
+} from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCXSx5J7I149bo5qmf0bkFvMzuA6seav-c",
+  authDomain: "mental-calculations.firebaseapp.com",
+  projectId: "mental-calculations",
+  storageBucket: "mental-calculations.firebasestorage.app",
+  messagingSenderId: "563028952038",
+  appId: "1:563028952038:web:8626a2f3e57ffb78a2cc27",
+  measurementId: "G-5DD559MH5J"
+};
+
+// Initialize Core Firebase Modules
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const googleProvider = new GoogleAuthProvider();
+
 const SUBJECTS = [
   { id: 'addition',       name: 'Addition',       icon: '+',  symbol: '+' },
   { id: 'subtraction',    name: 'Subtraction',    icon: '−',  symbol: '-' },
@@ -13,10 +46,11 @@ const SUBJECTS = [
 
 /**
  * ============================================================
- * ENGINE APPLICATION STATE OBJECT
+ * ENGINE APPLICATION STATE OBJECT & POINTER REFERENCE
  * ============================================================
  */
-let state = loadState();
+let state = instantiateDefaultState();
+let currentUser = null;
 
 let session = {
   subject: null,
@@ -38,18 +72,87 @@ let session = {
 
 /**
  * ============================================================
+ * EXPORT INTERNAL HOOKS EXPLICITLY TO GLOBAL WINDOW OBJECT
+ * ============================================================
+ */
+window.showScreen = showScreen;
+window.backToSubjectSelect = backToSubjectSelect;
+window.toggleAuthenticationState = toggleAuthenticationState;
+window.submitAnswer = submitAnswer;
+window.bootExecutionSession = bootExecutionSession;
+window.executeSubjectProfiling = executeSubjectProfiling;
+
+/**
+ * ============================================================
+ * IDENTITY LAYER CORE FLOW MANAGEMENT
+ * ============================================================
+ */
+onAuthStateChanged(auth, async (user) => {
+  const overlay = document.getElementById('gatewayLockoutOverlay');
+  
+  if (user) {
+    currentUser = user;
+    document.getElementById('authBtn').textContent = 'Sign Out';
+    document.getElementById('userGreeting').textContent = `Pilot Vector: ${user.displayName || 'Authorized Human'}`;
+    
+    // Completely dissolve the blocking lockout gateway overlay on verified sign-in
+    if (overlay) overlay.classList.remove('active');
+    
+    // Force wait for full database state retrieval before running rendering pipelines
+    state = await loadRemoteUserCloudState(user.uid);
+    renderDashboardCore();
+  } else {
+    currentUser = null;
+    document.getElementById('authBtn').textContent = 'Sign In';
+    document.getElementById('userGreeting').textContent = 'Mental Arithmetic Training';
+    
+    state = instantiateDefaultState();
+    
+    // Activate blocking lockout panel barrier rule if no session profile is present
+    if (overlay) overlay.classList.add('active');
+    
+    showScreen('dashboard');
+  }
+});
+
+async function toggleAuthenticationState() {
+  if (currentUser) {
+    try {
+      await signOut(auth);
+    } catch (e) {
+      console.error("Identity decoupling systemic execution hazard.", e);
+    }
+  } else {
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (e) {
+      console.error("Identity assertion authorization error hook.", e);
+    }
+  }
+}
+
+/**
+ * ============================================================
  * STATE STORAGE PERSISTENCE SYSTEMS
  * ============================================================
  */
-function loadState() {
+async function loadRemoteUserCloudState(uid) {
   try {
-    const data = localStorage.getItem('calculus_v3_engine');
-    if (data) {
-      const parsed = JSON.parse(data);
-      if (parsed.subjects && parsed.history) return parsed;
+    const documentReference = doc(db, "users", uid, "state", "calculus_data");
+    const snapshot = await getDoc(documentReference);
+    if (snapshot.exists()) {
+      const cloudPayload = snapshot.data();
+      if (cloudPayload.subjects && cloudPayload.history) {
+        return mergeStateSafetyChecks(cloudPayload);
+      }
+    } else {
+      // Create initial foundational state template explicitly in cloud document reference path
+      const freshDefault = instantiateDefaultState();
+      await setDoc(documentReference, freshDefault);
+      return freshDefault;
     }
   } catch (e) {
-    console.error("State core fault: Resetting structural parameters.", e);
+    console.error("Cloud document sync operational anomaly.", e);
   }
   return instantiateDefaultState();
 }
@@ -77,11 +180,39 @@ function instantiateDefaultState() {
   };
 }
 
-function saveState() {
-  try {
-    localStorage.setItem('calculus_v3_engine', JSON.stringify(state));
-  } catch (e) {
-    console.error("Critical State save warning.", e);
+function mergeStateSafetyChecks(incoming) {
+  const base = instantiateDefaultState();
+  // Ensure that dynamic fields added across upgrades merge gracefully without discarding values
+  base.bestStreak = incoming.bestStreak || 0;
+  base.totalQ = incoming.totalQ || 0;
+  base.totalCorrect = incoming.totalCorrect || 0;
+  base.totalTime = incoming.totalTime || 0;
+  base.history = incoming.history || [];
+  
+  SUBJECTS.forEach(s => {
+    if (incoming.subjects && incoming.subjects[s.id]) {
+      base.subjects[s.id] = {
+        level: incoming.subjects[s.id].level || 1,
+        clearedLevels: incoming.subjects[s.id].clearedLevels || [],
+        totalQ: incoming.subjects[s.id].totalQ || 0,
+        totalCorrect: incoming.subjects[s.id].totalCorrect || 0,
+        bestStreak: incoming.subjects[s.id].bestStreak || 0,
+        totalTime: incoming.subjects[s.id].totalTime || 0,
+        sessions: incoming.subjects[s.id].sessions || []
+      };
+    }
+  });
+  return base;
+}
+
+async function saveStatePipeline() {
+  if (currentUser) {
+    try {
+      const docRef = doc(db, "users", currentUser.uid, "state", "calculus_data");
+      await setDoc(docRef, state);
+    } catch (e) {
+      console.error("Cloud database synchronization error layer runtime fault.", e);
+    }
   }
 }
 
@@ -185,11 +316,6 @@ function fetchQuestionsPerSession(level) {
   return 12;
 }
 
-/**
- * ============================================================
- * STRUCTURAL AUXILIARY METHODS
- * ============================================================
- */
 function rand(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
@@ -204,10 +330,15 @@ function parseFormattedDuration(milliseconds) {
 
 /**
  * ============================================================
- * APPLICATION SCREEN EXECUTIVE ROUTER
+ * SYSTEM SCREEN NAVIGATION INTERCEPTOR RULE (SIGN-IN GATEWAY)
  * ============================================================
  */
 function showScreen(screenId) {
+  if ((screenId === 'practice' || screenId === 'analytics') && !currentUser) {
+    toggleAuthenticationState();
+    return;
+  }
+
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-links button').forEach(b => b.classList.remove('active'));
 
@@ -270,8 +401,12 @@ function renderDashboardCore() {
       </div>
     `;
     card.addEventListener('click', () => {
-      showScreen('practice');
-      executeSubjectProfiling(s.id);
+      if (!currentUser) {
+        toggleAuthenticationState();
+      } else {
+        showScreen('practice');
+        executeSubjectProfiling(s.id);
+      }
     });
     grid.appendChild(card);
   });
@@ -307,11 +442,6 @@ function renderLogStack() {
   });
 }
 
-/**
- * ============================================================
- * INTERACTIVE SESSION PRACTICE CONTROLLER
- * ============================================================
- */
 function initializePracticeRoutingView() {
   document.getElementById('noSubjectMsg').classList.remove('hidden');
   document.getElementById('levelSelectMsg').classList.add('hidden');
@@ -386,17 +516,12 @@ function buildLevelSelectionRows(subjectId) {
     `;
 
     if (!statusLocked) {
-      structuralRow.addEventListener('click', () => bootExecutionSession(subjectId, lv));
+      structuralRow.addEventListener('click', () => window.bootExecutionSession(subjectId, lv));
     }
     container.appendChild(structuralRow);
   }
 }
 
-/**
- * ============================================================
- * INTERACTIVE MATRIX MONITOR ENGINE START
- * ============================================================
- */
 function bootExecutionSession(subjectId, level) {
   const targetDiscipline = SUBJECTS.find(x => x.id === subjectId);
   const totalQuestionsNeeded = fetchQuestionsPerSession(level);
@@ -461,11 +586,6 @@ function executeDisplayLoop() {
   engageTimerSubsystem();
 }
 
-/**
- * ============================================================
- * ENGINE TIMER INTERFACES
- * ============================================================
- */
 function engageTimerSubsystem() {
   clearInterval(session.timerInterval);
   session.timeLeft = session.maxTime;
@@ -525,11 +645,6 @@ function processTimeoutFault() {
   setTimeout(advanceSessionQueue, 1800);
 }
 
-/**
- * ============================================================
- * INPUT EVALUATION LOGIC
- * ============================================================
- */
 function submitAnswer() {
   const structuralField = document.getElementById('answerInput');
   const filteredInputString = structuralField.value.trim();
@@ -585,12 +700,7 @@ function refreshLiveSessionMetaChips() {
   document.getElementById('metaScore').textContent = `${session.totalCorrect} / ${session.questions.length}`;
 }
 
-/**
- * ============================================================
- * TERMINAL SECTOR LOG COMPILER
- * ============================================================
- */
-function terminateProcessingSession() {
+async function terminateProcessingSession() {
   clearInterval(session.timerInterval);
 
   const totalEvaluationsCount = session.questions.length;
@@ -646,8 +756,13 @@ function terminateProcessingSession() {
   });
   if (state.history.length > 60) state.history.shift();
 
-  saveState();
   displayTerminalOverlay(logicalStrictCompliancePass, verifiedSuccessCount, totalEvaluationsCount, runSuccessPercentage, processingMeanVelocity, processingPeakVelocity);
+
+  try {
+    await saveStatePipeline();
+  } catch (e) {
+    console.error("Database backup write sequence tracking loss exception:", e);
+  }
 }
 
 function displayTerminalOverlay(isPass, correct, total, accuracy, meanTime, peakTime) {
@@ -678,7 +793,7 @@ function displayTerminalOverlay(isPass, correct, total, accuracy, meanTime, peak
   dynamicPrimaryActionButton.onclick = () => {
     frameOverlay.className = 'result-overlay';
     const destinationTargetLevel = isPass ? state.subjects[session.subject].level : session.level;
-    bootExecutionSession(session.subject, destinationTargetLevel);
+    window.bootExecutionSession(session.subject, destinationTargetLevel);
   };
   structuralPanel.appendChild(dynamicPrimaryActionButton);
 
@@ -690,7 +805,7 @@ function displayTerminalOverlay(isPass, correct, total, accuracy, meanTime, peak
     document.getElementById('sessionMeta').classList.add('hidden');
     document.getElementById('sessionProgress').classList.add('hidden');
     document.getElementById('questionView').classList.remove('active');
-    showScreen('dashboard');
+    window.showScreen('dashboard');
   };
   structuralPanel.appendChild(fallbackDashboardExitButton);
 }
@@ -861,9 +976,14 @@ function executeCanvasChartLayerDrawing() {
  * INTERFACE CONTROL CAPTURE INITIALIZATIONS
  * ============================================================
  */
-document.getElementById('answerInput').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    submitAnswer();
+document.addEventListener('DOMContentLoaded', () => {
+  const answerInputNode = document.getElementById('answerInput');
+  if(answerInputNode) {
+    answerInputNode.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        window.submitAnswer();
+      }
+    });
   }
 });
 
@@ -873,6 +993,3 @@ window.addEventListener('resize', () => {
     executeCanvasChartLayerDrawing();
   }
 });
-
-// App Engine Entry Point Initialization Call
-renderDashboardCore();
