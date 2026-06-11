@@ -3,6 +3,7 @@
  * CALCULUS — MENTAL ARITHMETIC TRAINING
  * Enhanced: Dynamic Skill-Based Scoring Engine
  * Extended: Decimal Mode + Full High-Precision Analytics
+ * Unified: Dual-Layer Cloud Recovery Fallback Pipeline
  * ============================================================
  */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
@@ -615,6 +616,13 @@ function renderDashboardCore() {
     clearedTotal += state.subjects[s.id].decimal.clearedLevels.length;
   });
 
+  // Calculate Avg Points safely even if session arrays are not yet locally initialized inside the browser instance
+  let computedAvgPointsPerQ = state.averagePointsPerQuestion || 0;
+  if (computedAvgPointsPerQ === 0 && totalQ > 0 && state.totalPoints > 0) {
+    computedAvgPointsPerQ = state.totalPoints / totalQ;
+    state.averagePointsPerQuestion = computedAvgPointsPerQ; // Mirror state repair data mapping protocols
+  }
+
   // Structural metric display elements binding
   document.getElementById('statTotalQ').textContent       = totalQ;
   document.getElementById('statAccuracy').textContent     = totalQ > 0 ? `${acc}%` : '—';
@@ -627,7 +635,7 @@ function renderDashboardCore() {
   document.getElementById('statOverallPoints').textContent     = (state.totalPoints || 0).toFixed(2);
   document.getElementById('statNormalPoints').textContent      = (state.normalModePoints || 0).toFixed(2);
   document.getElementById('statMixedPoints').textContent       = (state.mixedModePoints || 0).toFixed(2);
-  document.getElementById('statAvgPointsPerQ').textContent     = (state.averagePointsPerQuestion || 0).toFixed(2);
+  document.getElementById('statAvgPointsPerQ').textContent     = computedAvgPointsPerQ.toFixed(2);
   document.getElementById('statHighestSingleQ').textContent   = (state.highestQuestionScore || 0).toFixed(2);
   document.getElementById('statLifetimeEfficiency').textContent = `${(state.lifetimeEfficiency || 0).toFixed(1)}%`;
 
@@ -672,21 +680,58 @@ function renderDashboardCore() {
   renderLogStack();
 }
 
+// ============================================================
+// DUAL-LAYER METRIC SYNCHRONIZATION SUB-ENGINE
+// ============================================================
 async function renderTodaySummary() {
-  if (!idbDb) return;
-  const allRecs = await idbGetAllRecords();
+  let todayRecs = [];
   const todayStr = getTodayKey();
-  const todayRecs = allRecs.filter(r => {
-    const d = new Date(r.timestamp);
-    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}` === todayStr;
-  });
 
-  const totalQ = todayRecs.length;
-  const correct = todayRecs.filter(r => r.correct).length;
-  const acc = totalQ > 0 ? Math.round((correct / totalQ) * 100) + '%' : '—';
-  const avgTime = totalQ > 0 ? (todayRecs.reduce((a, r) => a + r.timeTaken, 0) / totalQ).toFixed(1) + 's' : '—';
+  // Layer 1: Attempt tracking acquisition via local high-precision IndexedDB
+  if (idbDb) {
+    try {
+      const allRecs = await idbGetAllRecords();
+      todayRecs = allRecs.filter(r => {
+        const d = new Date(r.timestamp);
+        return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}` === todayStr;
+      });
+    } catch (e) {
+      console.warn("IndexedDB read friction encountered, executing fallback engine initialization:", e);
+    }
+  }
+
+  // Layer 2: Cloud Recovery Fallback Pipeline (Triggered if local database state array is clear)
+  if (todayRecs.length === 0 && state.history && state.history.length > 0) {
+    todayRecs = state.history.filter(h => {
+      const d = new Date(h.date || h.timestamp);
+      return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}` === todayStr;
+    }).map(h => ({
+      correct: h.perfect || h.accuracy === 100 ? h.total : h.correct, // Normalize parameter schemas
+      total: h.total,
+      earnedPoints: h.pointsEarned || 0,
+      timeTaken: h.elapsed ? (h.elapsed / 1000) / h.total : 0 // Extrapolate speed metrics
+    }));
+  }
+
+  // Calculate Aggregated Matrix Coordinates
+  const totalQ = todayRecs.reduce((acc, r) => acc + (r.total || 1), 0);
+  const totalCorrect = todayRecs.reduce((acc, r) => acc + (r.correct !== undefined ? (r.correct === true ? 1 : (r.correct === false ? 0 : r.correct)) : 0), 0);
+  
+  const acc = totalQ > 0 ? Math.round((totalCorrect / totalQ) * 100) + '%' : '—';
+  
+  // Calculate average operational speed loop coordinates
+  let avgTime = '—';
+  if (idbDb && todayRecs.length > 0 && todayRecs.some(r => r.timeTaken && !r.total)) {
+    const times = todayRecs.map(r => r.timeTaken).filter(t => t > 0);
+    avgTime = times.length ? (times.reduce((a, b) => a + b, 0) / times.length).toFixed(1) + 's' : '—';
+  } else if (totalQ > 0) {
+    const totalTimeRecorded = todayRecs.reduce((acc, r) => acc + (r.timeTaken * (r.total || 1)), 0);
+    avgTime = totalTimeRecorded > 0 ? (totalTimeRecorded / todayRecs.length).toFixed(1) + 's' : '—';
+  }
+
   const earnedToday = todayRecs.reduce((a, r) => a + (r.earnedPoints || 0), 0);
 
+  // Update DOM Workspace Node Interface Elements
   document.getElementById('todayQ').textContent       = totalQ;
   document.getElementById('todayAcc').textContent     = acc;
   document.getElementById('todaySpeed').textContent   = avgTime;
