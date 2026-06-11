@@ -11,6 +11,7 @@
 </head>
 <body>
 
+  <!-- ===== AUTH GATEWAY ===== -->
   <div id="gatewayLockoutOverlay" class="gateway-lockout active">
     <div class="gateway-modal">
       <div class="gateway-logo">Calculus<span>.</span></div>
@@ -28,6 +29,7 @@
     </div>
   </div>
 
+  <!-- ===== NAV ===== -->
   <nav class="nav">
     <div class="nav-logo">Calculus<span>.</span></div>
     <ul class="nav-links">
@@ -38,6 +40,7 @@
     </ul>
   </nav>
 
+  <!-- ===== DASHBOARD SCREEN ===== -->
   <div id="screenDashboard" class="screen active">
     <div class="dashboard">
       <div class="dash-hero">
@@ -46,25 +49,6 @@
         <p class="dash-sub">Five core disciplines. Integer &amp; decimal modes. Infinite operational levels. Your statistics and mastery progressions are actively tracked and updated in real-time.</p>
       </div>
 
-      <div class="section-title">Quantum Points Matrices</div>
-      <div class="points-system-panel">
-        <div class="point-main-card">
-          <div class="p-label">Overall Platform Velocity Score</div>
-          <div class="p-val" id="statOverallPoints">0</div>
-        </div>
-        <div class="point-sub-cards">
-          <div class="p-sub-card">
-            <span class="p-sub-lbl">Normal Discipline Points</span>
-            <span class="p-sub-val" id="statNormalPoints">0</span>
-          </div>
-          <div class="p-sub-card">
-            <span class="p-sub-lbl">Mixed Mode Challenges</span>
-            <span class="p-sub-val" id="statMixedPoints">0</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="section-title">Core Performance Metrics</div>
       <div class="stats-bar">
         <div class="stat-item">
           <div class="stat-label">Questions Solved</div>
@@ -92,22 +76,7 @@
         </div>
       </div>
 
-      <div class="section-title">Mixed Infinite Challenge Summary</div>
-      <div class="stats-bar mixed-premium-metrics-bar">
-        <div class="stat-item">
-          <div class="stat-label">Mixed Attempt Vol</div>
-          <div class="stat-value" id="statMixedTotalQ">0</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-label">Mixed Acc Index</div>
-          <div class="stat-value accent" id="statMixedAccuracy">—</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-label">Mixed Highest Streak</div>
-          <div class="stat-value" id="statMixedBestStreak">0</div>
-        </div>
-      </div>
-
+      <!-- Today summary -->
       <div class="today-bar" id="todayBar">
         <div class="today-item">
           <div class="today-label">Today's Questions</div>
@@ -135,6 +104,7 @@
     </div>
   </div>
 
+  <!-- ===== PRACTICE SCREEN ===== -->
   <div id="screenPractice" class="screen">
     <div class="practice-screen">
 
@@ -144,12 +114,14 @@
           Dashboard
         </button>
 
+        <!-- Step 1: Choose discipline -->
         <div id="noSubjectMsg">
           <h2 class="page-heading">Select an <em>operational core.</em></h2>
           <p class="page-subheading">Choose a baseline mathematical discipline to execute training loops.</p>
           <div class="subjects-grid" id="practiceSubjectsGrid"></div>
         </div>
 
+        <!-- Step 2: Choose Integer / Decimal -->
         <div id="modeSelectMsg" class="hidden">
           <button class="back-btn" onclick="window.backToSubjectSelect()" style="margin-bottom:1.5rem">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 12L6 8l4-4" /></svg>
@@ -173,6 +145,7 @@
           </div>
         </div>
 
+        <!-- Step 3: Choose level -->
         <div id="levelSelectMsg" class="hidden">
           <button class="back-btn" onclick="window.backToModeSelect()" style="margin-bottom:1.5rem">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 12L6 8l4-4" /></svg>
@@ -224,7 +197,6 @@
             <input class="answer-input" type="text" id="answerInput" placeholder="?" autocomplete="off" inputmode="decimal" />
             <div class="feedback-msg" id="feedbackMsg"></div>
             <button class="submit-btn" id="submitBtn" onclick="window.submitAnswer()">Submit Evaluation</button>
-            <button class="exit-mixed-btn hidden" id="mixedExitBtn" onclick="window.terminateMixedSession()">Halt &amp; Exit Workspace</button>
           </div>
         </div>
       </div>
@@ -235,6 +207,7 @@
     </div>
   </div>
 
+  <!-- ===== ANALYTICS SCREEN ===== -->
   <div id="screenAnalytics" class="screen">
     <div class="analytics">
       <div class="dash-hero">
@@ -243,6 +216,7 @@
         <p class="dash-sub">Precision index, response metrics, and processing velocity mapped parameters. One-year retention, stored locally.</p>
       </div>
 
+      <!-- Time range tabs -->
       <div class="analytics-tabs">
         <button class="analytics-tab active" id="tabDaily"   onclick="window.switchAnalyticsTab('daily')">Daily</button>
         <button class="analytics-tab"         id="tabWeekly"  onclick="window.switchAnalyticsTab('weekly')">Weekly</button>
@@ -250,6 +224,7 @@
         <button class="analytics-tab"         id="tabAllTime" onclick="window.switchAnalyticsTab('alltime')">All Time</button>
       </div>
 
+      <!-- Date / Week / Month selectors -->
       <div class="date-selector-row" id="dateSelectorRow">
         <button class="date-nav-btn" onclick="window.shiftAnalyticsPeriod(-1)">&#8592;</button>
         <div class="date-label" id="dateSelectorLabel">—</div>
@@ -259,8 +234,10 @@
 
       <div class="analytics-grid" id="analyticsTopGrid"></div>
 
+      <!-- Insights -->
       <div id="insightsPanel" class="insights-panel"></div>
 
+      <!-- Trend chart -->
       <div class="section-title">Accuracy &amp; Volume Trend</div>
       <div class="perf-chart-wrap">
         <div class="perf-chart-title" id="trendChartTitle">Last 20 Sessions — Accuracy %</div>
@@ -272,6 +249,7 @@
       <div class="section-title">Discipline Matrices</div>
       <div class="subject-breakdown" id="subjectBreakdown"></div>
 
+      <!-- Export buttons -->
       <div class="export-row">
         <div class="section-title" style="margin-bottom:0">Export Data</div>
         <div class="export-btns">
@@ -282,6 +260,7 @@
     </div>
   </div>
 
+  <!-- ===== RESULT OVERLAY ===== -->
   <div class="result-overlay" id="resultOverlay">
     <div class="result-status" id="resultStatus">—</div>
     <h2 class="result-heading" id="resultHeading">—</h2>

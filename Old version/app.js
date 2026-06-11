@@ -2,7 +2,6 @@
  * ============================================================
  * CALCULUS — MENTAL ARITHMETIC TRAINING
  * Enhanced: Decimal Mode + Full Analytics (IndexedDB)
- * Extended: Mixed Infinite Mode + Triple-Layer Points System
  * ============================================================
  */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
@@ -41,7 +40,6 @@ const googleProvider = new GoogleAuthProvider();
 // SUBJECT DEFINITIONS
 // ============================================================
 const SUBJECTS = [
-  { id: 'mixed',          name: 'Mixed',          icon: '🎯', symbol: '' },
   { id: 'addition',       name: 'Addition',       icon: '+',  symbol: '+' },
   { id: 'subtraction',    name: 'Subtraction',    icon: '−',  symbol: '-' },
   { id: 'multiplication', name: 'Multiplication', icon: '×',  symbol: '×' },
@@ -58,7 +56,7 @@ let idbDb = null;
 
 function openIDB() {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open('calculus_analytics', 3); // Upgraded version for mixed mode schemas
+    const req = indexedDB.open('calculus_analytics', 2);
     req.onupgradeneeded = (e) => {
       const db = e.target.result;
       if (!db.objectStoreNames.contains('records')) {
@@ -95,8 +93,10 @@ async function idbGetAllRecords() {
 async function idbPurgeOldRecords() {
   if (!idbDb) return;
   const cutoff = Date.now() - 365 * 24 * 60 * 60 * 1000;
+  const allRecs = await idbGetAllRecords();
   const tx = idbDb.transaction('records', 'readwrite');
   const store = tx.objectStore('records');
+  // Re-query with cursor to get keys
   return new Promise((resolve) => {
     const cursorReq = store.openCursor();
     cursorReq.onsuccess = (e) => {
@@ -120,15 +120,14 @@ let currentUser = null;
 
 // Analytics period state
 let analyticsTab = 'daily';
-let analyticsPeriodOffset = 0;
+let analyticsPeriodOffset = 0; // days / weeks / months offset from today
 
 let session = {
   subject: null, subjectName: '', mode: 'integer',
   level: null, questions: [], answers: [], times: [],
   current: 0, streak: 0, timerInterval: null,
   timeLeft: 0, maxTime: 0, questionStart: null,
-  totalSolved: 0, totalCorrect: 0, startTime: null,
-  isMixed: false, mixedQuestionsTrack: []
+  totalSolved: 0, totalCorrect: 0, startTime: null
 };
 
 // Practice flow state
@@ -150,7 +149,6 @@ window.switchAnalyticsTab      = switchAnalyticsTab;
 window.shiftAnalyticsPeriod    = shiftAnalyticsPeriod;
 window.goToTodayPeriod         = goToTodayPeriod;
 window.exportData              = exportData;
-window.terminateMixedSession   = terminateMixedSession;
 
 // ============================================================
 // AUTH LAYER
@@ -193,7 +191,7 @@ async function loadRemoteUserCloudState(uid) {
     const snap = await getDoc(ref);
     if (snap.exists()) {
       const data = snap.data();
-      return mergeStateSafetyChecks(data);
+      if (data.subjects && data.history) return mergeStateSafetyChecks(data);
     } else {
       const fresh = instantiateDefaultState();
       await setDoc(ref, fresh);
@@ -206,7 +204,6 @@ async function loadRemoteUserCloudState(uid) {
 function instantiateDefaultState() {
   const subjects = {};
   SUBJECTS.forEach(s => {
-    if (s.id === 'mixed') return;
     subjects[s.id] = {
       integer: { level: 1, clearedLevels: [], totalQ: 0, totalCorrect: 0, bestStreak: 0, totalTime: 0 },
       decimal: { level: 1, clearedLevels: [], totalQ: 0, totalCorrect: 0, bestStreak: 0, totalTime: 0 }
@@ -219,20 +216,10 @@ function instantiateDefaultState() {
     totalCorrect: 0,
     totalTime: 0,
     history: [],
+    // streak tracking
     lastPracticeDay: null,
     currentDayStreak: 0,
-    longestDayStreak: 0,
-    // System Points Substructures
-    overallPoints: 0,
-    normalPoints: 0,
-    mixedPoints: 0,
-    // Mixed Metrics Archetype
-    mixedTotalQuestions: 0,
-    mixedCorrectQuestions: 0,
-    mixedBestStreak: 0,
-    mixedCurrentStreak: 0,
-    mixedTotalTime: 0,
-    mixedSessions: 0
+    longestDayStreak: 0
   };
 }
 
@@ -247,22 +234,12 @@ function mergeStateSafetyChecks(incoming) {
   base.currentDayStreak  = incoming.currentDayStreak || 0;
   base.longestDayStreak  = incoming.longestDayStreak || 0;
 
-  // Sync Points System Variables Safely
-  base.overallPoints         = incoming.overallPoints || 0;
-  base.normalPoints          = incoming.normalPoints || 0;
-  base.mixedPoints           = incoming.mixedPoints || 0;
-  base.mixedTotalQuestions   = incoming.mixedTotalQuestions || 0;
-  base.mixedCorrectQuestions = incoming.mixedCorrectQuestions || 0;
-  base.mixedBestStreak       = incoming.mixedBestStreak || 0;
-  base.mixedCurrentStreak    = incoming.mixedCurrentStreak || 0;
-  base.mixedTotalTime        = incoming.mixedTotalTime || 0;
-  base.mixedSessions         = incoming.mixedSessions || 0;
-
   SUBJECTS.forEach(s => {
-    if (s.id === 'mixed') return;
     if (incoming.subjects && incoming.subjects[s.id]) {
       const inc = incoming.subjects[s.id];
+      // Handle legacy single-mode format
       if (inc.level !== undefined && inc.clearedLevels !== undefined) {
+        // old format — migrate to integer
         base.subjects[s.id].integer = {
           level: inc.level || 1,
           clearedLevels: inc.clearedLevels || [],
@@ -272,6 +249,7 @@ function mergeStateSafetyChecks(incoming) {
           totalTime: inc.totalTime || 0
         };
       } else {
+        // new dual-mode format
         ['integer', 'decimal'].forEach(m => {
           if (inc[m]) {
             base.subjects[s.id][m] = {
@@ -298,6 +276,9 @@ async function saveStatePipeline() {
   } catch (e) { console.error(e); }
 }
 
+// ============================================================
+// DAY STREAK TRACKING
+// ============================================================
 function getTodayKey() {
   const d = new Date();
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
@@ -305,7 +286,7 @@ function getTodayKey() {
 
 function updateDayStreak() {
   const today = getTodayKey();
-  if (state.lastPracticeDay === today) return;
+  if (state.lastPracticeDay === today) return; // already counted today
 
   const yesterday = (() => {
     const d = new Date();
@@ -415,6 +396,7 @@ function generateDecimalQuestion(subjectId, level) {
 }
 
 function ensureDecimal(q) {
+  // Validate constraint: at least one operand or answer must be decimal
   const hasDecimalOperand = q.expr.match(/\d+\.\d+/);
   const hasDecimalAnswer = !Number.isInteger(q.answer);
   return hasDecimalOperand || hasDecimalAnswer;
@@ -439,6 +421,7 @@ function generateDecimalAddition(level) {
     const q = { expr, answer };
     if (ensureDecimal(q)) return q;
   }
+  // Fallback guarantee
   a = randFloat(1, 20, 1) + 0.1; b = rand(1, 10);
   return { expr: `${a} + ${b}`, answer: roundTo(a + b, 3) };
 }
@@ -484,6 +467,7 @@ function generateDecimalMultiplication(level) {
 }
 
 function generateDecimalDivision(level) {
+  // Generate guaranteed exact decimal answers
   for (let attempt = 0; attempt < 30; attempt++) {
     let dividend, divisor, answer;
     if (level === 1) {
@@ -517,6 +501,7 @@ function generateDecimalDivision(level) {
       if (Number.isInteger(answer)) continue;
       return { expr: `${ddv} ÷ ${divisor}`, answer };
     } else {
+      // Level 5: decimal dividend
       const divisorD = randFloat(1.5, 5, 1);
       const dividendD = randFloat(5, 50, 1);
       answer = roundTo(dividendD / divisorD, 3);
@@ -524,6 +509,7 @@ function generateDecimalDivision(level) {
       return { expr: `${dividendD} ÷ ${divisorD}`, answer };
     }
   }
+  // Fallback
   return { expr: `10 ÷ 4`, answer: 2.5 };
 }
 
@@ -565,22 +551,7 @@ function generateQuestion(subjectId, level, mode = 'integer') {
   return generateIntegerQuestion(subjectId, level);
 }
 
-function generateInfiniteMixedQuestion() {
-  const pools = ['addition', 'subtraction', 'multiplication', 'division', 'bodmas'];
-  const chosenSub = pools[Math.floor(Math.random() * pools.length)];
-  const chosenMode = Math.random() < 0.5 ? 'integer' : 'decimal';
-  // Standard ceiling for random generator metrics mapping
-  const chosenLevel = rand(1, 15); 
-  
-  const questionObj = generateQuestion(chosenSub, chosenLevel, chosenMode);
-  return {
-    ...questionObj,
-    actualDiscipline: chosenSub,
-    actualMode: chosenMode,
-    actualLevel: chosenLevel
-  };
-}
-
+// Decimal answer tolerance
 const DECIMAL_TOLERANCE = 0.001;
 
 function isAnswerCorrect(userVal, correctVal, mode) {
@@ -602,9 +573,10 @@ function getAdaptiveTimeLimit(subjectId, level, mode) {
     division:       [8, 10, 12, 18, 25, 35],
     bodmas:         [10, 14, 18, 24, 35, 50]
   };
-  const tier = base[subjectId] || base['addition'];
+  const tier = base[subjectId];
   const idx = Math.min(Math.floor((level - 1) / 3), tier.length - 1);
   const t = tier[idx];
+  // Decimal gets 50% more time
   return mode === 'decimal' ? Math.round(t * 1.5) : t;
 }
 
@@ -661,12 +633,10 @@ function renderDashboardCore() {
   const acc = totalQ > 0 ? Math.round((state.totalCorrect / totalQ) * 100) : 0;
   let clearedTotal = 0;
   SUBJECTS.forEach(s => {
-    if (s.id === 'mixed') return;
     clearedTotal += state.subjects[s.id].integer.clearedLevels.length;
     clearedTotal += state.subjects[s.id].decimal.clearedLevels.length;
   });
 
-  // Main Metrics Display Assignment
   document.getElementById('statTotalQ').textContent       = totalQ;
   document.getElementById('statAccuracy').textContent     = totalQ > 0 ? `${acc}%` : '—';
   document.getElementById('statBestStreak').textContent   = state.bestStreak || 0;
@@ -674,62 +644,35 @@ function renderDashboardCore() {
   document.getElementById('statTime').textContent         = parseFormattedDuration(state.totalTime || 0);
   document.getElementById('statDayStreak').textContent    = state.currentDayStreak || 0;
 
-  // New Points System Rendering
-  document.getElementById('statOverallPoints').textContent = state.overallPoints || 0;
-  document.getElementById('statNormalPoints').textContent  = state.normalPoints || 0;
-  document.getElementById('statMixedPoints').textContent   = state.mixedPoints || 0;
-  
-  // Mixed Core Premium Statistics Cards
-  const mTotal = state.mixedTotalQuestions || 0;
-  const mCorrect = state.mixedCorrectQuestions || 0;
-  const mAcc = mTotal > 0 ? Math.round((mCorrect / mTotal) * 100) : 0;
-  document.getElementById('statMixedTotalQ').textContent  = mTotal;
-  document.getElementById('statMixedAccuracy').textContent = mTotal > 0 ? `${mAcc}%` : '—';
-  document.getElementById('statMixedBestStreak').textContent = state.mixedBestStreak || 0;
-
+  // Today summary
   renderTodaySummary();
 
-  // Subject cards rendering
+  // Subject cards
   const grid = document.getElementById('subjectsGrid');
   grid.innerHTML = '';
   SUBJECTS.forEach(s => {
-    const card = document.createElement('div');
-    if (s.id === 'mixed') {
-      card.className = 'subject-card premium-mixed-card';
-      card.innerHTML = `
-        <span class="subject-icon">${s.icon}</span>
-        <span class="subject-level-badge mixed-badge-flavor">Infinite</span>
-        <div class="subject-name">${s.name} Challenge</div>
-        <div class="subject-meta">Infinite Questions · 1 Pt Per Match<br><span style="color:var(--accent-core)">Click to launch challenge loop</span></div>
-        <div class="subject-progress-bar" style="background:rgba(84,122,165,0.2)"><div class="subject-progress-fill" style="width:100%; background:linear-gradient(90deg, var(--accent-core), var(--green-light))"></div></div>
-      `;
-      card.addEventListener('click', () => {
-        if (!currentUser) { toggleAuthenticationState(); return; }
-        bootMixedInfiniteSession();
-      });
-    } else {
-      const intData = state.subjects[s.id].integer;
-      const decData = state.subjects[s.id].decimal;
-      const totQ = intData.totalQ + decData.totalQ;
-      const totC = intData.totalCorrect + decData.totalCorrect;
-      const subAcc = totQ > 0 ? Math.round((totC / totQ) * 100) : null;
-      const cleared = intData.clearedLevels.length + decData.clearedLevels.length;
-      const levelPct = Math.min(cleared * 5, 100);
+    const intData = state.subjects[s.id].integer;
+    const decData = state.subjects[s.id].decimal;
+    const totQ = intData.totalQ + decData.totalQ;
+    const totC = intData.totalCorrect + decData.totalCorrect;
+    const subAcc = totQ > 0 ? Math.round((totC / totQ) * 100) : null;
+    const cleared = intData.clearedLevels.length + decData.clearedLevels.length;
+    const levelPct = Math.min(cleared * 5, 100);
 
-      card.className = 'subject-card';
-      card.innerHTML = `
-        <span class="subject-icon">${s.icon}</span>
-        <span class="subject-level-badge">Int. Lv ${intData.level}</span>
-        <div class="subject-name">${s.name}</div>
-        <div class="subject-meta">${subAcc !== null ? `${subAcc}% accuracy · ${cleared} steps cleared` : 'No sessions yet'}</div>
-        <div class="subject-progress-bar"><div class="subject-progress-fill" style="width:${levelPct}%"></div></div>
-      `;
-      card.addEventListener('click', () => {
-        if (!currentUser) { toggleAuthenticationState(); return; }
-        showScreen('practice');
-        executeSubjectProfiling(s.id);
-      });
-    }
+    const card = document.createElement('div');
+    card.className = 'subject-card';
+    card.innerHTML = `
+      <span class="subject-icon">${s.icon}</span>
+      <span class="subject-level-badge">Int. Lv ${intData.level}</span>
+      <div class="subject-name">${s.name}</div>
+      <div class="subject-meta">${subAcc !== null ? `${subAcc}% accuracy · ${cleared} steps cleared` : 'No sessions yet'}</div>
+      <div class="subject-progress-bar"><div class="subject-progress-fill" style="width:${levelPct}%"></div></div>
+    `;
+    card.addEventListener('click', () => {
+      if (!currentUser) { toggleAuthenticationState(); return; }
+      showScreen('practice');
+      executeSubjectProfiling(s.id);
+    });
     grid.appendChild(card);
   });
 
@@ -774,7 +717,7 @@ function renderLogStack() {
       <div class="history-left">
         <div class="history-dot ${cls}"></div>
         <div>
-          <div class="history-subject">${log.subjectName} · ${log.mode === 'mixed' ? 'Infinite Mode' : (log.mode === 'decimal' ? 'Decimal' : 'Integer')} ${log.level ? '· Level ' + log.level : ''}</div>
+          <div class="history-subject">${log.subjectName} · ${log.mode === 'decimal' ? 'Decimal' : 'Integer'} · Level ${log.level}</div>
           <div class="history-detail">${log.correct} / ${log.total} · ${parseFormattedDuration(log.elapsed)}</div>
         </div>
       </div>
@@ -794,38 +737,25 @@ function initializePracticeRoutingView() {
   document.getElementById('sessionMeta').classList.add('hidden');
   document.getElementById('sessionProgress').classList.add('hidden');
   document.getElementById('questionView').classList.remove('active');
-  document.getElementById('mixedExitBtn').classList.add('hidden');
   document.getElementById('subjectSelectView').style.display = '';
 
   const selGrid = document.getElementById('practiceSubjectsGrid');
   selGrid.innerHTML = '';
 
   SUBJECTS.forEach(s => {
+    const intData = state.subjects[s.id].integer;
+    const decData = state.subjects[s.id].decimal;
+    const cleared = intData.clearedLevels.length + decData.clearedLevels.length;
     const card = document.createElement('div');
-    if (s.id === 'mixed') {
-      card.className = 'subject-card premium-mixed-card';
-      card.innerHTML = `
-        <span class="subject-icon">${s.icon}</span>
-        <span class="subject-level-badge mixed-badge-flavor">Infinite</span>
-        <div class="subject-name">${s.name} Challenge</div>
-        <div class="subject-meta">Infinite mix parameters workspace environment</div>
-        <div class="subject-progress-bar" style="background:rgba(84,122,165,0.2)"><div class="subject-progress-fill" style="width:100%; background:linear-gradient(90deg, var(--accent-core), var(--green-light))"></div></div>
-      `;
-      card.addEventListener('click', () => bootMixedInfiniteSession());
-    } else {
-      const intData = state.subjects[s.id].integer;
-      const decData = state.subjects[s.id].decimal;
-      const cleared = intData.clearedLevels.length + decData.clearedLevels.length;
-      card.className = 'subject-card';
-      card.innerHTML = `
-        <span class="subject-icon">${s.icon}</span>
-        <span class="subject-level-badge">Int Lv ${intData.level}</span>
-        <div class="subject-name">${s.name}</div>
-        <div class="subject-meta">${cleared} steps cleared</div>
-        <div class="subject-progress-bar"><div class="subject-progress-fill" style="width:${Math.min(cleared * 5, 100)}%"></div></div>
-      `;
-      card.addEventListener('click', () => executeSubjectProfiling(s.id));
-    }
+    card.className = 'subject-card';
+    card.innerHTML = `
+      <span class="subject-icon">${s.icon}</span>
+      <span class="subject-level-badge">Int Lv ${intData.level}</span>
+      <div class="subject-name">${s.name}</div>
+      <div class="subject-meta">${cleared} steps cleared</div>
+      <div class="subject-progress-bar"><div class="subject-progress-fill" style="width:${Math.min(cleared * 5, 100)}%"></div></div>
+    `;
+    card.addEventListener('click', () => executeSubjectProfiling(s.id));
     selGrid.appendChild(card);
   });
 }
@@ -845,10 +775,6 @@ function backToModeSelect() {
 }
 
 function executeSubjectProfiling(subjectId) {
-  if (subjectId === 'mixed') {
-    bootMixedInfiniteSession();
-    return;
-  }
   practiceSubject = subjectId;
   const profile = SUBJECTS.find(x => x.id === subjectId);
   const intData = state.subjects[subjectId].integer;
@@ -930,16 +856,13 @@ function bootExecutionSession(subjectId, mode, level) {
     totalSolved: 0,
     totalCorrect: 0,
     startTime: Date.now(),
-    sessionId: Date.now().toString(36),
-    isMixed: false,
-    mixedQuestionsTrack: []
+    sessionId: Date.now().toString(36)
   };
 
   document.getElementById('subjectSelectView').style.display = 'none';
   document.getElementById('sessionMeta').classList.remove('hidden');
   document.getElementById('sessionProgress').classList.remove('hidden');
   document.getElementById('questionView').classList.add('active');
-  document.getElementById('mixedExitBtn').classList.add('hidden');
 
   document.getElementById('metaSubject').textContent = discipline.name;
   document.getElementById('metaMode').textContent    = mode === 'decimal' ? 'Decimal' : 'Integer';
@@ -955,68 +878,6 @@ function bootExecutionSession(subjectId, mode, level) {
   }
 
   executeDisplayLoop();
-}
-
-function bootMixedInfiniteSession() {
-  session = {
-    subject: 'mixed',
-    subjectName: 'Mixed',
-    mode: 'mixed',
-    level: null,
-    questions: [],
-    answers: [],
-    times: [],
-    current: 0,
-    streak: 0,
-    timerInterval: null,
-    timeLeft: 0,
-    maxTime: 10, // Will adapt on-the-fly dynamically
-    questionStart: null,
-    totalSolved: 0,
-    totalCorrect: 0,
-    startTime: Date.now(),
-    sessionId: Date.now().toString(36),
-    isMixed: true,
-    mixedQuestionsTrack: []
-  };
-
-  // UI elements adjustments
-  showScreen('practice');
-  document.getElementById('subjectSelectView').style.display = 'none';
-  document.getElementById('sessionMeta').classList.remove('hidden');
-  document.getElementById('sessionProgress').classList.add('hidden'); // Infinite requires no completion bars
-  document.getElementById('questionView').classList.add('active');
-  document.getElementById('mixedExitBtn').classList.remove('hidden');
-
-  document.getElementById('metaSubject').textContent = 'Mixed';
-  document.getElementById('metaMode').textContent    = 'Infinite';
-  document.getElementById('metaLevel').textContent   = '—';
-  document.getElementById('metaStreak').textContent  = 0;
-  document.getElementById('metaScore').textContent   = `Pts: 0`;
-
-  executeMixedQuestionLoop();
-}
-
-function executeMixedQuestionLoop() {
-  const nextQ = generateInfiniteMixedQuestion();
-  session.questions[session.current] = nextQ;
-  session.maxTime = getAdaptiveTimeLimit(nextQ.actualDiscipline, nextQ.actualLevel, nextQ.actualMode);
-
-  document.getElementById('questionNum').textContent  = `Mixed Challenge Run — Op ${session.current + 1}`;
-  document.getElementById('questionExpr').textContent = nextQ.expr;
-
-  const inp = document.getElementById('answerInput');
-  inp.value = '';
-  inp.className = 'answer-input';
-  inp.disabled = false;
-
-  document.getElementById('feedbackMsg').textContent = '';
-  document.getElementById('feedbackMsg').className   = 'feedback-msg';
-  document.getElementById('submitBtn').disabled       = false;
-
-  inp.focus();
-  session.questionStart = Date.now();
-  engageTimerSubsystem();
 }
 
 function executeDisplayLoop() {
@@ -1080,7 +941,6 @@ function processTimeoutFault() {
   session.answers.push({ chosenValue: null, statusCorrect: false, expression: q.expr, actualValue: q.answer });
   session.times.push(dt);
   session.streak = 0;
-  if (session.isMixed) state.mixedCurrentStreak = 0;
 
   const inp = document.getElementById('answerInput');
   inp.value = 'Time Limit Exceeded';
@@ -1093,24 +953,7 @@ function processTimeoutFault() {
   document.getElementById('submitBtn').disabled = true;
 
   refreshLiveSessionMetaChips();
-  
-  if (session.isMixed) {
-    session.mixedQuestionsTrack.push({
-      discipline: "mixed",
-      actualDiscipline: q.actualDiscipline,
-      actualMode: q.actualMode,
-      actualLevel: q.actualLevel,
-      question: q.expr,
-      answer: q.answer,
-      correct: false,
-      timeTaken: dt / 1000,
-      timestamp: Date.now()
-    });
-    session.totalSolved++;
-    setTimeout(advanceMixedQueue, 1800);
-  } else {
-    setTimeout(advanceSessionQueue, 1800);
-  }
+  setTimeout(advanceSessionQueue, 1800);
 }
 
 function submitAnswer() {
@@ -1123,7 +966,7 @@ function submitAnswer() {
   const dt = Date.now() - session.questionStart;
 
   clearInterval(session.timerInterval);
-  const correct = isAnswerCorrect(userVal, q.answer, session.isMixed ? q.actualMode : session.mode);
+  const correct = isAnswerCorrect(userVal, q.answer, session.mode);
 
   inp.disabled = true;
   document.getElementById('submitBtn').disabled = true;
@@ -1137,19 +980,8 @@ function submitAnswer() {
     msg.className = 'feedback-msg correct';
     const affirm = ['Execution Verified', 'Precision Nominal', 'Exact Match', 'Compliance Met'];
     msg.textContent = affirm[session.current % affirm.length];
-    
-    if (session.isMixed) {
-      state.mixedPoints = (state.mixedPoints || 0) + 1;
-      state.mixedCorrectQuestions = (state.mixedCorrectQuestions || 0) + 1;
-      state.mixedCurrentStreak = (state.mixedCurrentStreak || 0) + 1;
-      if (state.mixedCurrentStreak > (state.mixedBestStreak || 0)) {
-        state.mixedBestStreak = state.mixedCurrentStreak;
-      }
-      state.overallPoints = (state.normalPoints || 0) + (state.mixedPoints || 0);
-    }
   } else {
     session.streak = 0;
-    if (session.isMixed) state.mixedCurrentStreak = 0;
     inp.value = `Fault: ${raw}`;
     inp.className = 'answer-input wrong';
     msg.className = 'feedback-msg wrong';
@@ -1160,25 +992,8 @@ function submitAnswer() {
   session.times.push(dt);
   session.totalSolved++;
 
-  if (session.isMixed) {
-    state.mixedTotalQuestions = (state.mixedTotalQuestions || 0) + 1;
-    session.mixedQuestionsTrack.push({
-      discipline: "mixed",
-      actualDiscipline: q.actualDiscipline,
-      actualMode: q.actualMode,
-      actualLevel: q.actualLevel,
-      question: q.expr,
-      answer: q.answer,
-      correct: correct,
-      timeTaken: dt / 1000,
-      timestamp: Date.now()
-    });
-    refreshLiveSessionMetaChips();
-    setTimeout(advanceMixedQueue, correct ? 1000 : 2000);
-  } else {
-    refreshLiveSessionMetaChips();
-    setTimeout(advanceSessionQueue, correct ? 1000 : 2000);
-  }
+  refreshLiveSessionMetaChips();
+  setTimeout(advanceSessionQueue, correct ? 1000 : 2000);
 }
 
 function advanceSessionQueue() {
@@ -1190,18 +1005,9 @@ function advanceSessionQueue() {
   }
 }
 
-function advanceMixedQueue() {
-  session.current++;
-  executeMixedQuestionLoop();
-}
-
 function refreshLiveSessionMetaChips() {
   document.getElementById('metaStreak').textContent = session.streak;
-  if (session.isMixed) {
-    document.getElementById('metaScore').textContent = `Pts: ${session.totalCorrect}`;
-  } else {
-    document.getElementById('metaScore').textContent = `${session.totalCorrect} / ${session.questions.length}`;
-  }
+  document.getElementById('metaScore').textContent  = `${session.totalCorrect} / ${session.questions.length}`;
 }
 
 // ============================================================
@@ -1220,6 +1026,7 @@ async function terminateProcessingSession() {
   const meanTime = correctTimes.length ? Math.round(correctTimes.reduce((a, b) => a + b, 0) / correctTimes.length) : 0;
   const peakTime = correctTimes.length ? Math.min(...correctTimes) : 0;
 
+  // Update mode-specific state
   const modeData = state.subjects[session.subject][session.mode];
   modeData.totalQ        += total;
   modeData.totalCorrect  += correct;
@@ -1229,16 +1036,13 @@ async function terminateProcessingSession() {
   if (perfect) {
     if (!modeData.clearedLevels.includes(session.level)) modeData.clearedLevels.push(session.level);
     if (session.level === modeData.level) modeData.level = session.level + 1;
-    
-    // Points Allocation Policy: Award point mapping if level cleared successfully with 100% precision
-    state.normalPoints = (state.normalPoints || 0) + total;
   }
 
+  // Update global state
   state.totalQ        += total;
   state.totalCorrect  += correct;
   state.totalTime     += elapsed;
   if (session.streak > state.bestStreak) state.bestStreak = session.streak;
-  state.overallPoints = (state.normalPoints || 0) + (state.mixedPoints || 0);
 
   updateDayStreak();
 
@@ -1251,6 +1055,7 @@ async function terminateProcessingSession() {
   });
   if (state.history.length > 80) state.history.shift();
 
+  // Save per-question records to IndexedDB
   if (idbDb) {
     for (let i = 0; i < session.questions.length; i++) {
       const ans = session.answers[i];
@@ -1270,85 +1075,7 @@ async function terminateProcessingSession() {
   }
 
   displayTerminalOverlay(perfect, correct, total, accuracy, meanTime, peakTime);
-  try { await saveStatePipeline(); } catch (e) { console.error(e); }
-}
 
-async function terminateMixedSession() {
-  clearInterval(session.timerInterval);
-  
-  const elapsed = Date.now() - session.startTime;
-  state.mixedTotalTime = (state.mixedTotalTime || 0) + elapsed;
-  state.mixedSessions = (state.mixedSessions || 0) + 1;
-  
-  state.totalQ += session.totalSolved;
-  state.totalCorrect += session.totalCorrect;
-  state.totalTime += elapsed;
-  state.overallPoints = (state.normalPoints || 0) + (state.mixedPoints || 0);
-  
-  updateDayStreak();
-  
-  const accuracy = session.totalSolved > 0 ? Math.round((session.totalCorrect / session.totalSolved) * 100) : 0;
-  
-  state.history.push({
-    subjectName: "Mixed Challenge",
-    mode: "mixed",
-    level: null,
-    correct: session.totalCorrect,
-    total: session.totalSolved,
-    elapsed: elapsed,
-    perfect: false,
-    accuracy: accuracy,
-    date: Date.now()
-  });
-  
-  // Write individual Mixed records to IndexedDB Workspace
-  if (idbDb) {
-    for (const rec of session.mixedQuestionsTrack) {
-      await idbSaveRecord({
-        ...rec,
-        sessionId: session.sessionId
-      });
-    }
-  }
-  
-  // Display specialized summary modal configuration overlay for mixed mode
-  const overlay = document.getElementById('resultOverlay');
-  overlay.className = 'result-overlay active';
-
-  document.getElementById('resultStatus').textContent  = 'Infinite Workspace Loop Exited';
-  const heading = document.getElementById('resultHeading');
-  heading.textContent = 'Mixed Run Summary';
-  heading.className   = `result-heading success`;
-
-  document.getElementById('resultSub').textContent = `Session runtime safely halted. Earned +${session.totalCorrect} points for this calculation execution sequence.`;
-
-  const times = session.times.filter(t => t > 0);
-  const avgS = times.length ? ((times.reduce((a,b)=>a+b, 0)/times.length)/1000).toFixed(1) + 's' : '—';
-
-  document.getElementById('resAcc').textContent     = `${accuracy}%`;
-  document.getElementById('resAvgTime').textContent = avgS;
-  document.getElementById('resBest').textContent    = parseFormattedDuration(elapsed);
-  document.getElementById('resStreak').textContent  = session.streak;
-
-  // Repurpose label strings temporarily for clarity
-  const labels = overlay.querySelectorAll('.result-stat-label');
-  if (labels[2]) labels[2].textContent = "Session Duration";
-
-  const btns = document.getElementById('resultBtns');
-  btns.innerHTML = '';
-
-  const primary = document.createElement('button');
-  primary.className = 'btn-primary';
-  primary.textContent = 'Return to Dashboard';
-  primary.onclick = () => {
-    overlay.className = 'result-overlay';
-    if (labels[2]) labels[2].textContent = "Peak Velocity"; // Reset standard structure
-    document.getElementById('sessionMeta').classList.add('hidden');
-    document.getElementById('questionView').classList.remove('active');
-    window.showScreen('dashboard');
-  };
-  btns.appendChild(primary);
-  
   try { await saveStatePipeline(); } catch (e) { console.error(e); }
 }
 
@@ -1432,10 +1159,13 @@ async function initAnalyticsView() {
 }
 
 async function renderAnalyticsPeriod() {
-  if (!idbDb) { await openIDB(); }
+  if (!idbDb) {
+    await openIDB();
+  }
   const allRecs = await idbGetAllRecords();
 
   let filteredRecs, periodLabel;
+
   const now = new Date();
 
   if (analyticsTab === 'daily') {
@@ -1487,27 +1217,29 @@ function computeMetrics(recs) {
   const avgTime = times.length ? (times.reduce((a, b) => a + b, 0) / times.length).toFixed(2) : null;
   const fastest = times.length ? Math.min(...times).toFixed(2) : null;
   const slowest = times.length ? Math.max(...times).toFixed(2) : null;
+  const medTime = times.length ? (() => {
+    const s = [...times].sort((a, b) => a - b);
+    const mid = Math.floor(s.length / 2);
+    return s.length % 2 ? s[mid].toFixed(2) : ((s[mid - 1] + s[mid]) / 2).toFixed(2);
+  })() : null;
   const qpm = times.length && avgTime > 0 ? (60 / parseFloat(avgTime)).toFixed(1) : null;
   const totalTime = recs.reduce((a, r) => a + r.timeTaken, 0);
 
-  return { total, correct, wrong, acc, avgTime, fastest, slowest, qpm, totalTime };
+  return { total, correct, wrong, acc, avgTime, fastest, slowest, medTime, qpm, totalTime };
 }
 
 function renderAnalyticsMetrics(recs, allRecs) {
   const m = computeMetrics(recs);
-  const mixedRecs = recs.filter(r => r.discipline === 'Mixed' || r.discipline === 'mixed');
-  const mM = computeMetrics(mixedRecs);
-
   const grid = document.getElementById('analyticsTopGrid');
   const configs = [
     { label: 'Questions',     value: m.total,                      accent: false },
-    { label: 'Overall Acc',   value: m.acc !== null ? `${m.acc}%` : '—', accent: true },
+    { label: 'Correct',       value: m.correct,                    accent: false },
+    { label: 'Accuracy',      value: m.acc !== null ? `${m.acc}%` : '—', accent: true },
     { label: 'Avg Speed',     value: m.avgTime ? `${m.avgTime}s` : '—', accent: false },
+    { label: 'Best Time',     value: m.fastest ? `${m.fastest}s` : '—', accent: true },
+    { label: 'Q / Minute',    value: m.qpm || '—',                 accent: false },
     { label: 'Practice Time', value: parseFormattedDuration(m.totalTime * 1000), accent: false },
-    { label: 'Mixed Solved',  value: mM.total,                     accent: false },
-    { label: 'Mixed Acc',     value: mM.acc !== null ? `${mM.acc}%` : '—', accent: true },
-    { label: 'Mixed Points',  value: mM.correct,                   accent: false },
-    { label: 'Mixed Avg Speed', value: mM.avgTime ? `${mM.avgTime}s` : '—', accent: false }
+    { label: 'Day Streak',    value: state.currentDayStreak || 0,  accent: true }
   ];
   grid.innerHTML = '';
   configs.forEach(cfg => {
@@ -1539,12 +1271,12 @@ function generateInsights(recs, allRecs) {
 
   const m = computeMetrics(recs);
 
+  // Best / worst discipline this period
   const byDisc = {};
   recs.forEach(r => {
-    const discName = r.discipline;
-    if (!byDisc[discName]) byDisc[discName] = { total: 0, correct: 0 };
-    byDisc[discName].total++;
-    if (r.correct) byDisc[discName].correct++;
+    if (!byDisc[r.discipline]) byDisc[r.discipline] = { total: 0, correct: 0 };
+    byDisc[r.discipline].total++;
+    if (r.correct) byDisc[r.discipline].correct++;
   });
   const discArr = Object.entries(byDisc).map(([d, v]) => ({ d, acc: v.total > 0 ? v.correct / v.total : 0, total: v.total }));
   if (discArr.length >= 2) {
@@ -1553,10 +1285,35 @@ function generateInsights(recs, allRecs) {
     insights.push({ text: `Your weakest discipline is ${discArr[discArr.length - 1].d} (${Math.round(discArr[discArr.length - 1].acc * 100)}% accuracy).`, color: 'red' });
   }
 
+  // Best / worst section (integer vs decimal)
+  const bySec = {};
+  recs.forEach(r => {
+    const k = `${r.discipline} · ${r.section}`;
+    if (!bySec[k]) bySec[k] = { total: 0, correct: 0 };
+    bySec[k].total++;
+    if (r.correct) bySec[k].correct++;
+  });
+  const secArr = Object.entries(bySec).map(([k, v]) => ({ k, acc: v.total > 5 ? v.correct / v.total : null })).filter(x => x.acc !== null);
+  if (secArr.length) {
+    secArr.sort((a, b) => b.acc - a.acc);
+    insights.push({ text: `Fastest section: ${secArr[0].k} at ${Math.round(secArr[0].acc * 100)}% accuracy.`, color: 'green' });
+  }
+
+  // Speed insight
   if (m.avgTime) {
     const avgF = parseFloat(m.avgTime);
     if (avgF < 5) insights.push({ text: `Excellent response speed: averaging ${m.avgTime}s per question.`, color: 'green' });
     else if (avgF > 15) insights.push({ text: `Average response time is ${m.avgTime}s — practice speed drills to improve.`, color: 'amber' });
+  }
+
+  // Compare to all-time
+  if (allRecs.length > recs.length) {
+    const mAll = computeMetrics(allRecs);
+    if (m.acc !== null && mAll.acc !== null) {
+      const diff = m.acc - mAll.acc;
+      if (diff >= 5) insights.push({ text: `Accuracy is ${diff}% above your all-time average — great momentum.`, color: 'green' });
+      else if (diff <= -5) insights.push({ text: `Accuracy is ${Math.abs(diff)}% below your all-time average.`, color: 'red' });
+    }
   }
 
   return insights.slice(0, 5);
@@ -1570,74 +1327,48 @@ function renderBreakdownCards(recs) {
     const card = document.createElement('div');
     card.className = 'breakdown-card';
 
-    if (s.id === 'mixed') {
-      const mixedRecs = recs.filter(r => r.discipline === 'Mixed' || r.discipline === 'mixed');
-      const total = mixedRecs.length;
-      const correct = mixedRecs.filter(r => r.correct).length;
-      const acc = total > 0 ? Math.round((correct / total) * 100) : 0;
-      
-      card.innerHTML = `
-        <div class="breakdown-header">
-          <div class="breakdown-name">🎯 Mixed Infinite</div>
-          <div class="breakdown-level" style="background:rgba(78,135,82,0.1); color:var(--green-light); border-color:var(--green)">Active Mode</div>
-        </div>
-        <div style="margin-top:1rem;" class="breakdown-rows">
-          <div class="breakdown-row">
-            <div class="breakdown-row-label">Accuracy</div>
-            <div class="breakdown-row-bar"><div class="breakdown-row-fill" style="width:${acc}%; background:var(--green)"></div></div>
-            <div class="breakdown-row-val">${total > 0 ? acc + '%' : '—'}</div>
-          </div>
-          <div class="breakdown-row">
-            <div class="breakdown-row-label">Points Won</div>
-            <div class="breakdown-row-bar"><div class="breakdown-row-fill" style="width:${Math.min((correct / 100) * 100, 100)}%"></div></div>
-            <div class="breakdown-row-val">${correct}</div>
-          </div>
-        </div>
-      `;
-    } else {
-      const intData = state.subjects[s.id].integer;
-      const decData = state.subjects[s.id].decimal;
+    const intData = state.subjects[s.id].integer;
+    const decData = state.subjects[s.id].decimal;
 
-      const intRecs = recs.filter(r => r.discipline === s.name && r.section === 'integer');
-      const decRecs = recs.filter(r => r.discipline === s.name && r.section === 'decimal');
+    const intRecs = recs.filter(r => r.discipline === s.name && r.section === 'integer');
+    const decRecs = recs.filter(r => r.discipline === s.name && r.section === 'decimal');
 
-      function buildRows(disciplineRecs, modeData) {
-        const total   = disciplineRecs.length;
-        const correct = disciplineRecs.filter(r => r.correct).length;
-        const acc     = total > 0 ? Math.round((correct / total) * 100) : 0;
-        const cleared = modeData.clearedLevels.length;
-        return `
-          <div class="breakdown-row">
-            <div class="breakdown-row-label">Accuracy</div>
-            <div class="breakdown-row-bar"><div class="breakdown-row-fill" style="width:${acc}%"></div></div>
-            <div class="breakdown-row-val">${total > 0 ? acc + '%' : '—'}</div>
-          </div>
-          <div class="breakdown-row">
-            <div class="breakdown-row-label">Questions</div>
-            <div class="breakdown-row-bar"><div class="breakdown-row-fill" style="width:${Math.min((total / 50) * 100, 100)}%"></div></div>
-            <div class="breakdown-row-val">${total}</div>
-          </div>
-          <div class="breakdown-row">
-            <div class="breakdown-row-label">Cleared</div>
-            <div class="breakdown-row-bar"><div class="breakdown-row-fill" style="width:${Math.min(cleared * 10, 100)}%"></div></div>
-            <div class="breakdown-row-val">${cleared}</div>
-          </div>
-        `;
-      }
-
-      card.innerHTML = `
-        <div class="breakdown-header">
-          <div class="breakdown-name">${s.name}</div>
-          <div class="breakdown-level">Lv ${intData.level} / ${decData.level}</div>
+    function buildRows(disciplineRecs, modeData) {
+      const total   = disciplineRecs.length;
+      const correct = disciplineRecs.filter(r => r.correct).length;
+      const acc     = total > 0 ? Math.round((correct / total) * 100) : 0;
+      const cleared = modeData.clearedLevels.length;
+      return `
+        <div class="breakdown-row">
+          <div class="breakdown-row-label">Accuracy</div>
+          <div class="breakdown-row-bar"><div class="breakdown-row-fill" style="width:${acc}%"></div></div>
+          <div class="breakdown-row-val">${total > 0 ? acc + '%' : '—'}</div>
         </div>
-        <div class="breakdown-mode-tabs">
-          <button class="breakdown-mode-tab active" onclick="this.parentElement.querySelectorAll('.breakdown-mode-tab').forEach(b=>b.classList.remove('active'));this.classList.add('active');this.closest('.breakdown-card').querySelector('.mode-rows-integer').style.display='';this.closest('.breakdown-card').querySelector('.mode-rows-decimal').style.display='none';">Integer</button>
-          <button class="breakdown-mode-tab" onclick="this.parentElement.querySelectorAll('.breakdown-mode-tab').forEach(b=>b.classList.remove('active'));this.classList.add('active');this.closest('.breakdown-card').querySelector('.mode-rows-integer').style.display='none';this.closest('.breakdown-card').querySelector('.mode-rows-decimal').style.display='';">Decimal</button>
+        <div class="breakdown-row">
+          <div class="breakdown-row-label">Questions</div>
+          <div class="breakdown-row-bar"><div class="breakdown-row-fill" style="width:${Math.min((total / 50) * 100, 100)}%"></div></div>
+          <div class="breakdown-row-val">${total}</div>
         </div>
-        <div class="breakdown-rows mode-rows-integer">${buildRows(intRecs, intData)}</div>
-        <div class="breakdown-rows mode-rows-decimal" style="display:none">${buildRows(decRecs, decData)}</div>
+        <div class="breakdown-row">
+          <div class="breakdown-row-label">Cleared</div>
+          <div class="breakdown-row-bar"><div class="breakdown-row-fill" style="width:${Math.min(cleared * 10, 100)}%"></div></div>
+          <div class="breakdown-row-val">${cleared}</div>
+        </div>
       `;
     }
+
+    card.innerHTML = `
+      <div class="breakdown-header">
+        <div class="breakdown-name">${s.name}</div>
+        <div class="breakdown-level">Lv ${intData.level} / ${decData.level}</div>
+      </div>
+      <div class="breakdown-mode-tabs">
+        <button class="breakdown-mode-tab active" onclick="this.parentElement.querySelectorAll('.breakdown-mode-tab').forEach(b=>b.classList.remove('active'));this.classList.add('active');this.closest('.breakdown-card').querySelector('.mode-rows-integer').style.display='';this.closest('.breakdown-card').querySelector('.mode-rows-decimal').style.display='none';">Integer</button>
+        <button class="breakdown-mode-tab" onclick="this.parentElement.querySelectorAll('.breakdown-mode-tab').forEach(b=>b.classList.remove('active'));this.classList.add('active');this.closest('.breakdown-card').querySelector('.mode-rows-integer').style.display='none';this.closest('.breakdown-card').querySelector('.mode-rows-decimal').style.display='';">Decimal</button>
+      </div>
+      <div class="breakdown-rows mode-rows-integer">${buildRows(intRecs, intData)}</div>
+      <div class="breakdown-rows mode-rows-decimal" style="display:none">${buildRows(decRecs, decData)}</div>
+    `;
     container.appendChild(card);
   });
 }
@@ -1650,6 +1381,7 @@ function renderTrendChart(allRecs) {
   canvas.width  = rect.width || 600;
   canvas.height = 200;
 
+  // Group by session using history
   const history = (state.history || []).slice(-20);
   if (!history.length) {
     ctx.fillStyle = '#4E4E4E';
@@ -1663,6 +1395,7 @@ function renderTrendChart(allRecs) {
   const L = 50, R = 20, T = 20, B = 30;
   const pw = W - L - R, ph = H - T - B;
 
+  // Grid lines
   [0, 25, 50, 75, 100].forEach(pct => {
     const y = T + ph - (pct / 100) * ph;
     ctx.strokeStyle = 'rgba(255,255,255,0.03)';
@@ -1682,6 +1415,7 @@ function renderTrendChart(allRecs) {
     perfect: h.perfect
   }));
 
+  // Fill gradient
   const grad = ctx.createLinearGradient(0, T, 0, T + ph);
   grad.addColorStop(0, 'rgba(84,122,165,0.15)');
   grad.addColorStop(1, 'rgba(84,122,165,0.00)');
@@ -1694,6 +1428,7 @@ function renderTrendChart(allRecs) {
   ctx.fillStyle = grad;
   ctx.fill();
 
+  // Line
   ctx.beginPath();
   ctx.moveTo(pts[0].x, pts[0].y);
   pts.forEach(p => ctx.lineTo(p.x, p.y));
@@ -1702,6 +1437,7 @@ function renderTrendChart(allRecs) {
   ctx.lineJoin = 'round';
   ctx.stroke();
 
+  // Dots
   pts.forEach(p => {
     ctx.beginPath();
     ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
@@ -1710,6 +1446,9 @@ function renderTrendChart(allRecs) {
   });
 }
 
+// ============================================================
+// EXPORT
+// ============================================================
 async function exportData(format) {
   if (!idbDb) return;
   const recs = await idbGetAllRecords();
@@ -1719,7 +1458,7 @@ async function exportData(format) {
     const blob = new Blob([JSON.stringify(recs, null, 2)], { type: 'application/json' });
     downloadBlob(blob, 'calculus_analytics.json');
   } else {
-    const headers = ['timestamp', 'discipline', 'section', 'level', 'question', 'answer', 'userAnswer', 'correct', 'timeTaken', 'actualDiscipline', 'actualMode', 'actualLevel'];
+    const headers = ['timestamp', 'discipline', 'section', 'level', 'question', 'answer', 'userAnswer', 'correct', 'timeTaken'];
     const rows = recs.map(r => headers.map(h => JSON.stringify(r[h] ?? '')).join(','));
     const csv = [headers.join(','), ...rows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -1735,6 +1474,9 @@ function downloadBlob(blob, filename) {
   document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 
+// ============================================================
+// KEYBOARD & RESIZE HANDLERS
+// ============================================================
 document.addEventListener('DOMContentLoaded', () => {
   const inp = document.getElementById('answerInput');
   if (inp) inp.addEventListener('keydown', e => { if (e.key === 'Enter') window.submitAnswer(); });
