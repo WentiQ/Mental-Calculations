@@ -51,6 +51,7 @@ const SUBJECTS = [
 ];
 
 const ABSOLUTE_MAX_TIME = 50; // Dynamic ceiling variable used to map max points
+const REVIEW_SCREEN_DURATION_MS = 2500; // Duration parameter for distraction free review lockouts
 
 // ============================================================
 // INDEXEDDB SETUP
@@ -548,6 +549,29 @@ function isAnswerCorrect(userVal, correctVal, mode) {
   return userVal === correctVal;
 }
 
+// ============================================================
+// FULL-SCREEN FAULT REVIEW CONTROL PIPELINES
+// ============================================================
+function triggerFullScreenFaultReview(expression, correctAnswer, onReviewComplete) {
+  const overlay = document.getElementById('faultReviewOverlay');
+  const exprEl = document.getElementById('faultReviewExpr');
+  const answerEl = document.getElementById('faultReviewAnswer');
+  
+  if (!overlay || !exprEl || !answerEl) {
+    onReviewComplete();
+    return;
+  }
+
+  exprEl.textContent = expression;
+  answerEl.textContent = correctAnswer;
+  overlay.classList.add('active');
+
+  setTimeout(() => {
+    overlay.classList.remove('active');
+    onReviewComplete();
+  }, REVIEW_SCREEN_DURATION_MS);
+}
+
 function getAdaptiveTimeLimit(subjectId, level, mode) {
   const base = {
     addition:       [6, 8, 10, 14, 18, 25],
@@ -1026,18 +1050,9 @@ function processTimeoutFault() {
   session.times.push(dt);
   session.streak = 0;
 
-  const inp = document.getElementById('answerInput');
-  inp.value = 'Timeout Threshold Met'; inp.className = 'answer-input wrong'; inp.disabled = true;
-
-  const msg = document.getElementById('feedbackMsg');
-  msg.textContent = `Time expired. Reference Vector: ${q.answer}`;
-  msg.className = 'feedback-msg wrong';
-  document.getElementById('submitBtn').disabled = true;
-
   // Process system tracking objects update cascades globally
   state.maxPossiblePoints += scoreMetrics.maxPoints;
   recomputeLifetimeAverages();
-
   refreshLiveSessionMetaChips();
   
   if (session.isMixed) {
@@ -1047,9 +1062,16 @@ function processTimeoutFault() {
       maxPoints: scoreMetrics.maxPoints, earnedPoints: 0, efficiency: 0, timeLimit: session.maxTime
     });
     session.totalSolved++;
-    setTimeout(advanceMixedQueue, 1800);
+    
+    // Launch dynamic screen fault review pipeline before continuing
+    triggerFullScreenFaultReview(q.expr, q.answer, () => {
+      advanceMixedQueue();
+    });
   } else {
-    setTimeout(advanceSessionQueue, 1800);
+    // Launch dynamic screen fault review pipeline before continuing
+    triggerFullScreenFaultReview(q.expr, q.answer, () => {
+      advanceSessionQueue();
+    });
   }
 }
 
@@ -1094,9 +1116,7 @@ function submitAnswer() {
     msg.textContent = `Verified (+${scoreMetrics.earnedPoints.toFixed(2)} Pts)`;
   } else {
     session.streak = 0;
-    inp.value = `Fault: ${raw}`; inp.className = 'answer-input wrong';
-    msg.className = 'feedback-msg wrong';
-    msg.textContent = `Incorrect. Value: ${q.answer}`;
+    inp.className = 'answer-input wrong';
   }
 
   session.answers.push({ chosenValue: userVal, statusCorrect: correct, expression: q.expr, actualValue: q.answer, scoreMetrics });
@@ -1112,10 +1132,22 @@ function submitAnswer() {
       maxPoints: scoreMetrics.maxPoints, earnedPoints: scoreMetrics.earnedPoints, efficiency: scoreMetrics.efficiency, timeLimit: session.maxTime
     });
     refreshLiveSessionMetaChips();
-    setTimeout(advanceMixedQueue, correct ? 1000 : 2000);
+    if (correct) {
+      setTimeout(advanceMixedQueue, 1000);
+    } else {
+      triggerFullScreenFaultReview(q.expr, q.answer, () => {
+        advanceMixedQueue();
+      });
+    }
   } else {
     refreshLiveSessionMetaChips();
-    setTimeout(advanceSessionQueue, correct ? 1000 : 2000);
+    if (correct) {
+      setTimeout(advanceSessionQueue, 1000);
+    } else {
+      triggerFullScreenFaultReview(q.expr, q.answer, () => {
+        advanceSessionQueue();
+      });
+    }
   }
 }
 
