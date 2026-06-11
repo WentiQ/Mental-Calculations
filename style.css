@@ -746,7 +746,7 @@ input  { border: none; background: none; color: inherit; outline: none; }
 }
 .date-nav-btn:hover { background: var(--ink); color: var(--white); }
 .date-nav-btn.today-btn {
-  font-size: 0.7rem;
+  font-size: 0.7 reservoirs;
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -1065,8 +1065,6 @@ input  { border: none; background: none; color: inherit; outline: none; }
    ============================================================ */
 .hidden { display: none !important; }
 
-
-
 /* ============================================================
    EXTENDED ARCHITECTURE PRESETS — INFINITE MIXED & POINTS SYSTEM
    ============================================================ */
@@ -1162,7 +1160,9 @@ input  { border: none; background: none; color: inherit; outline: none; }
   color: var(--white);
   border-color: transparent;
 }
-.mixed-premium-metrics-bar {
-  background: rgba(78, 135, 82, 0.1) !important;
-  border-color: rgba(78, 135, 82, 0.2) !important;
+
+/* Custom Extensions for the Skill Engine Updates */
+.adaptive-premium-bar {
+  background: rgba(84, 122, 165, 0.05) !important;
+  border: 1px dashed rgba(84, 122, 165, 0.25) !important;
 }
