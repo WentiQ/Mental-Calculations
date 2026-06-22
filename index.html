@@ -31,9 +31,9 @@
   <nav class="nav">
     <div class="nav-logo">Calculus<span>.</span></div>
     <ul class="nav-links">
-      <li><button id="navDash" class="active" onclick="window.showScreen('dashboard')">Dashboard</button></li>
-      <li><button id="navPractice" onclick="window.showScreen('practice')">Practice</button></li>
-      <li><button id="navAnalytics" onclick="window.showScreen('analytics')">Analytics</button></li>
+      <li><button id="navDash" class="active" onclick="window.handleNavNavigation('dashboard')">Dashboard</button></li>
+      <li><button id="navPractice" onclick="window.handleNavNavigation('practice')">Practice</button></li>
+      <li><button id="navAnalytics" onclick="window.handleNavNavigation('analytics')">Analytics</button></li>
       <li><button id="authBtn" class="auth-nav-btn" onclick="window.toggleAuthenticationState()">Sign In</button></li>
     </ul>
   </nav>
@@ -139,7 +139,7 @@
     <div class="practice-screen">
 
       <div class="subject-select-view" id="subjectSelectView">
-        <button class="back-btn" onclick="window.showScreen('dashboard')">
+        <button class="back-btn" onclick="window.handleNavNavigation('dashboard')">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 12L6 8l4-4" /></svg>
           Dashboard Hub
         </button>
@@ -231,7 +231,10 @@
             <button class="submit-btn" id="submitBtn" onclick="window.submitAnswer()">Verify Vector</button>
             <button class="exit-mixed-btn hidden" id="mixedExitBtn" onclick="window.terminateMixedSession()">Halt Calculation Sequence</button>
             
-            <button class="exit-mixed-btn hidden" id="generalExitBtn" style="margin-top: 1rem; background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.1); color: var(--mist);" onclick="window.abortActiveSession()">Abort Active Sequence</button>
+            <div id="bodmasActionContainer" style="display: flex; gap: 1rem; width: 100%; max-width: 280px; margin-top: 1rem;">
+              <button class="submit-btn" id="bodmasSaveBtn" style="display: none; flex: 1; padding: 0.85rem 1rem; background: var(--charcoal); border-color: rgba(255,255,255,0.08);" onclick="window.saveAndSuspendBodmasSession()">Save Sequence</button>
+              <button class="exit-mixed-btn" id="generalExitBtn" style="display: none; flex: 1; margin-top: 0; background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.1); color: var(--mist);" onclick="window.abortActiveSession()">Abort</button>
+            </div>
           </div>
         </div>
       </div>
@@ -251,7 +254,7 @@
       </div>
 
       <div class="analytics-tabs">
-        <button class="analytics-tab active" id="tabDaily"   onclick="window.switchAnalyticsTab('daily')">Daily Range</button>
+        <button class="analytics-tab active" id="tabDaily"   onclick="window.handleNavNavigation('analytics')">Daily Range</button>
         <button class="analytics-tab"         id="tabWeekly"  onclick="window.switchAnalyticsTab('weekly')">Weekly Delta</button>
         <button class="analytics-tab"         id="tabMonthly" onclick="window.switchAnalyticsTab('monthly')">Monthly Matrix</button>
         <button class="analytics-tab"         id="tabAllTime" onclick="window.switchAnalyticsTab('alltime')">All History</button>
@@ -319,6 +322,18 @@
       <div class="fault-review-expr" id="faultReviewExpr">—</div>
       <div class="fault-review-divider"></div>
       <div class="fault-review-answer" id="faultReviewAnswer">—</div>
+    </div>
+  </div>
+
+  <div id="navigationSaveOverlay" class="gateway-lockout" style="z-index: 6000; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);">
+    <div class="gateway-modal" style="max-width: 400px; padding: 2.5rem 2rem;">
+      <div class="gateway-logo" style="font-size: 1.6rem; margin-bottom: 1rem;">Unsaved Run Detected</div>
+      <p class="gateway-sub" style="margin-bottom: 2rem; font-size: 0.85rem;">An active Ultimate BODMAS training trace is running. Do you want to preserve your matrix data to the cloud before leaving?</p>
+      <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+        <button class="gateway-auth-btn" style="background: var(--accent-core); color: var(--white);" onclick="window.confirmSaveAndLeaveNav()">Save Data & Exit</button>
+        <button class="gateway-auth-btn" style="background: rgba(255,255,255,0.05); color: var(--cloud); border: 1px solid rgba(255,255,255,0.05);" onclick="window.confirmDiscardAndLeaveNav()">Discard Array & Exit</button>
+        <button class="gateway-auth-btn" style="background: transparent; color: var(--mist);" onclick="window.closeNavigationSaveDialog()">Cancel</button>
+      </div>
     </div>
   </div>
 

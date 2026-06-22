@@ -371,6 +371,41 @@ input  { border: none; background: none; color: inherit; outline: none; }
   padding: 0.2rem 0.5rem;
 }
 
+/* Ultimate BODMAS Card Custom Styler */
+.ultimate-bodmas-card {
+  border-color: rgba(158, 79, 79, 0.2) !important;
+}
+.ultimate-bodmas-card:hover {
+  border-color: rgba(158, 79, 79, 0.5) !important;
+  background: linear-gradient(145deg, var(--charcoal), rgba(158, 79, 79, 0.02)) !important;
+}
+.critical-badge-flavor {
+  color: var(--red-light) !important;
+  background: rgba(158, 79, 79, 0.08) !important;
+  border-color: rgba(158, 79, 79, 0.2) !important;
+}
+
+/* Mastered Layout Tag Styles */
+.question-tag {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--r-sm);
+  margin-bottom: 1.25rem;
+}
+.tag-easy {
+  color: var(--green-light);
+  background: rgba(78, 135, 82, 0.1);
+  border: 1px solid rgba(78, 135, 82, 0.2);
+}
+.tag-hard {
+  color: var(--amber);
+  background: rgba(188, 122, 70, 0.1);
+  border: 1px solid rgba(188, 122, 70, 0.2);
+}
+
 /* ============================================================
    HISTORY LOG
    ============================================================ */
@@ -746,7 +781,7 @@ input  { border: none; background: none; color: inherit; outline: none; }
 }
 .date-nav-btn:hover { background: var(--ink); color: var(--white); }
 .date-nav-btn.today-btn {
-  font-size: 0.7 reservoirs;
+  font-size: 0.7rem;
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -1207,3 +1242,33 @@ input  { border: none; background: none; color: inherit; outline: none; }
   color: var(--red-light);
   line-height: 1;
 }
+
+/* Ultimate BODMAS Layout Blocks */
+.mastery-breakdown-box {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: var(--r-md);
+  padding: 1.25rem 1.5rem;
+  margin: 2rem auto;
+  max-width: 360px;
+  text-align: left;
+}
+.mastery-breakdown-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  color: var(--mist);
+  margin-bottom: 0.5rem;
+}
+.mastery-breakdown-row.total-highlight {
+  color: var(--white);
+  font-weight: 600;
+  margin-bottom: 0;
+}
+.mastery-breakdown-divider {
+  height: 1px;
+  background: rgba(255,255,255,0.06);
+  margin: 0.75rem 0;
+}
+.m-round-lbl { font-family: var(--font-body); }
+.m-round-val { font-family: var(--font-display); color: var(--accent-core); }

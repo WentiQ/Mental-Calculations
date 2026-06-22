@@ -6,6 +6,7 @@
  * Unified: Dual-Layer Cloud Recovery Fallback Pipeline
  * Special Edition: Ultimate BODMAS Recursive Mastery Engine
  * Optimized: Real-Time Dynamic Queue Prediction + Fault Escape
+ * Persistent Layout: State Preservations for Ultimate BODMAS
  * ============================================================
  */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
@@ -21,7 +22,8 @@ import {
   getFirestore,
   doc,
   getDoc,
-  setDoc
+  setDoc,
+  deleteDoc
 } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -142,6 +144,7 @@ let session = {
 
 let practiceSubject = null;
 let practiceMode = null;
+let pendingNavigationTarget = null; // Intercept routing targets
 
 // ============================================================
 // GLOBAL EXPORTS
@@ -160,6 +163,14 @@ window.goToTodayPeriod         = goToTodayPeriod;
 window.exportData              = exportData;
 window.terminateMixedSession   = terminateMixedSession;
 window.abortActiveSession      = abortActiveSession;
+window.handleNavNavigation     = handleNavNavigation;
+
+// Ultimate BODMAS specific state handlers
+window.saveAndSuspendBodmasSession = saveAndSuspendBodmasSession;
+window.confirmSaveAndLeaveNav      = confirmSaveAndLeaveNav;
+window.confirmDiscardAndLeaveNav   = confirmDiscardAndLeaveNav;
+window.closeNavigationSaveDialog   = closeNavigationSaveDialog;
+window.resumeSuspendedBodmasSession = resumeSuspendedBodmasSession;
 
 // ============================================================
 // AUTH LAYER
@@ -777,8 +788,42 @@ function parseFormattedDuration(ms) {
 }
 
 // ============================================================
-// VIEW SYSTEM CAPTURES
+// ROUTING INTERCEPT & VIEW SYSTEM CAPTURES
 // ============================================================
+function handleNavNavigation(screenId) {
+  // If an Ultimate BODMAS session is running, intercept navigation and ask to save
+  if (session && session.subject === 'ultimate_bodmas' && session.questions.length > 0 && session.current < session.questions.length) {
+    pendingNavigationTarget = screenId;
+    const navOverlay = document.getElementById('navigationSaveOverlay');
+    if (navOverlay) navOverlay.classList.add('active');
+    return;
+  }
+  showScreen(screenId);
+}
+
+function confirmSaveAndLeaveNav() {
+  const navOverlay = document.getElementById('navigationSaveOverlay');
+  if (navOverlay) navOverlay.classList.remove('active');
+  
+  saveAndSuspendBodmasSession(true); // pass true to trigger structural routing after update
+}
+
+function confirmDiscardAndLeaveNav() {
+  const navOverlay = document.getElementById('navigationSaveOverlay');
+  if (navOverlay) navOverlay.classList.remove('active');
+  
+  session = { subject: null, questions: [], answers: [] }; // Wipe runtime state array
+  const target = pendingNavigationTarget || 'dashboard';
+  pendingNavigationTarget = null;
+  showScreen(target);
+}
+
+function closeNavigationSaveDialog() {
+  const navOverlay = document.getElementById('navigationSaveOverlay');
+  if (navOverlay) navOverlay.classList.remove('active');
+  pendingNavigationTarget = null;
+}
+
 function showScreen(screenId) {
   if ((screenId === 'practice' || screenId === 'analytics') && !currentUser) {
     toggleAuthenticationState();
@@ -800,6 +845,15 @@ function showScreen(screenId) {
   if (screenId === 'practice')   initializePracticeRoutingView();
   if (screenId === 'analytics')  initAnalyticsView();
 }
+
+// Window visibility exit hooks verification
+window.addEventListener('beforeunload', (e) => {
+  if (session && session.subject === 'ultimate_bodmas' && session.questions.length > 0 && session.current < session.questions.length) {
+    e.preventDefault();
+    e.returnValue = 'An active Ultimate BODMAS configuration run is execution-locked. Leaving will drop local metrics array.';
+    return e.returnValue;
+  }
+});
 
 // ============================================================
 // CORE UI RENDER MODULES
@@ -980,6 +1034,7 @@ function initializePracticeRoutingView() {
   document.getElementById('questionView').classList.remove('active');
   document.getElementById('mixedExitBtn').classList.add('hidden');
   document.getElementById('generalExitBtn').classList.add('hidden');
+  document.getElementById('bodmasSaveBtn').style.display = 'none';
   document.getElementById('subjectSelectView').style.display = '';
 
   const selGrid = document.getElementById('practiceSubjectsGrid');
@@ -1080,16 +1135,47 @@ function selectMode(mode) {
   }
 }
 
-function buildUltimateBodmasSelector(subjectId, mode) {
+async function buildUltimateBodmasSelector(subjectId, mode) {
   const container = document.getElementById('levelSelector');
   container.innerHTML = '';
+  
+  // Asynchronously query Firestore to check for suspended matrix traces
+  let savedSession = null;
+  if (currentUser) {
+    try {
+      const savedDocRef = doc(db, "users", currentUser.uid, "suspended_sessions", `bodmas_${mode}`);
+      const snap = await getDoc(savedDocRef);
+      if (snap.exists()) {
+        savedSession = snap.data();
+      }
+    } catch (e) {
+      console.error("Failed to check suspension pipeline state:", e);
+    }
+  }
+
   const modeData = state.subjects[subjectId][mode];
   const cleared = modeData.clearedLevels.includes(1);
 
+  if (savedSession) {
+    const resumeRow = document.createElement('div');
+    resumeRow.className = `level-row current`;
+    resumeRow.style.borderColor = 'var(--green-light)';
+    resumeRow.style.background = 'rgba(121, 186, 127, 0.05)';
+    resumeRow.innerHTML = `
+      <div class="level-num" style="color: var(--green-light)">Suspended Run</div>
+      <div class="level-desc" style="color: var(--white)">
+        Resume your running trace at Round ${savedSession.currentRound}, Question ${savedSession.current + 1} (${savedSession.mode}).
+      </div>
+      <div class="level-status cleared">Resume Track</div>
+    `;
+    resumeRow.addEventListener('click', () => resumeSuspendedBodmasSession(savedSession));
+    container.appendChild(resumeRow);
+  }
+
   const row = document.createElement('div');
-  row.className = `level-row current`;
+  row.className = `level-row ${savedSession ? '' : 'current'}`;
   row.innerHTML = `
-    <div class="level-num">Adaptive Track</div>
+    <div class="level-num">New Run</div>
     <div class="level-desc" style="color:var(--white)">
       50 Structured questions containing Brackets, Exponents, Division, Multiplication, Addition, Subtraction.
     </div>
@@ -1179,12 +1265,14 @@ function bootExecutionSession(subjectId, mode, level) {
   const predictiveChip = document.getElementById('metaPredictiveQueueChip');
   if (subjectId === 'ultimate_bodmas') {
     document.getElementById('timerRingContainer').style.display = 'none';
+    document.getElementById('bodmasSaveBtn').style.display = 'block'; // Display save parameters trigger button
     if (predictiveChip) {
       predictiveChip.style.display = 'flex';
       document.getElementById('metaPredictiveQueue').textContent = '0 Qs';
     }
   } else {
     document.getElementById('timerRingContainer').style.display = 'block';
+    document.getElementById('bodmasSaveBtn').style.display = 'none';
     if (predictiveChip) predictiveChip.style.display = 'none';
     const arc = document.getElementById('timerArc');
     if (arc) {
@@ -1210,6 +1298,7 @@ function bootMixedInfiniteSession() {
   document.getElementById('sessionProgress').classList.add('hidden');
   document.getElementById('questionView').classList.add('active');
   document.getElementById('mixedExitBtn').classList.remove('hidden');
+  document.getElementById('bodmasSaveBtn').style.display = 'none';
   
   const genExit = document.getElementById('generalExitBtn');
   if (genExit) genExit.classList.add('hidden');
@@ -1226,6 +1315,103 @@ function bootMixedInfiniteSession() {
   document.getElementById('metaScore').textContent   = `Pts: 0.00`;
 
   executeMixedQuestionLoop();
+}
+
+// ============================================================
+// ULTIMATE BODMAS DYNAMIC SUSPENSION ENGINE
+// ============================================================
+async function saveAndSuspendBodmasSession(redirectAfterSave = false) {
+  if (!currentUser) {
+    alert("Authentication validation required before database array sync.");
+    return;
+  }
+  if (!session || session.subject !== 'ultimate_bodmas') return;
+
+  try {
+    const savedDocRef = doc(db, "users", currentUser.uid, "suspended_sessions", `bodmas_${session.mode}`);
+    
+    // Package continuous execution parameters
+    const packagePayload = {
+      subject: session.subject,
+      subjectName: session.subjectName,
+      mode: session.mode,
+      level: session.level,
+      questions: session.questions,
+      answers: session.answers,
+      times: session.times,
+      current: session.current,
+      streak: session.streak,
+      totalSolved: session.totalSolved,
+      totalCorrect: session.totalCorrect,
+      startTime: session.startTime,
+      sessionId: session.sessionId,
+      sessionEarnedPoints: session.sessionEarnedPoints,
+      sessionPossiblePoints: session.sessionPossiblePoints,
+      currentRound: session.currentRound,
+      roundHistory: session.roundHistory,
+      masteryAnswers: session.masteryAnswers,
+      suspendedTimestamp: Date.now()
+    };
+
+    await setDoc(savedDocRef, packagePayload);
+    
+    // Safely update general account global state allocations up to current delta
+    await saveStatePipeline();
+    
+    alert("Ultimate BODMAS execution matrix saved to cloud successfully.");
+
+    // Clean tracking structures
+    session = { subject: null, questions: [], answers: [] };
+
+    if (redirectAfterSave) {
+      const target = pendingNavigationTarget || 'dashboard';
+      pendingNavigationTarget = null;
+      showScreen(target);
+    } else {
+      window.showScreen('dashboard');
+    }
+  } catch (e) {
+    console.error("Cloud tracking array persistence fault:", e);
+    alert("Database sync friction encountered. State suspension dropped.");
+  }
+}
+
+function resumeSuspendedBodmasSession(savedSessionData) {
+  // Rehydrate operations configuration object array
+  session = { ...savedSessionData };
+  
+  document.getElementById('subjectSelectView').style.display = 'none';
+  document.getElementById('sessionMeta').classList.remove('hidden');
+  document.getElementById('sessionProgress').classList.remove('hidden');
+  document.getElementById('questionView').classList.add('active');
+  document.getElementById('mixedExitBtn').classList.add('hidden');
+  
+  const genExit = document.getElementById('generalExitBtn');
+  if (genExit) genExit.classList.remove('hidden');
+
+  document.getElementById('metaSubject').textContent = session.subjectName;
+  document.getElementById('metaMode').textContent    = session.mode === 'decimal' ? 'Decimal' : 'Integer';
+  document.getElementById('metaLevel').textContent   = `Round ${session.currentRound}`;
+  document.getElementById('metaStreak').textContent  = session.streak;
+  document.getElementById('metaScore').textContent   = session.sessionEarnedPoints.toFixed(2);
+
+  document.getElementById('timerRingContainer').style.display = 'none';
+  document.getElementById('bodmasSaveBtn').style.display = 'block';
+
+  const predictiveChip = document.getElementById('metaPredictiveQueueChip');
+  if (predictiveChip) {
+    predictiveChip.style.display = 'flex';
+    const currentRoundErrors = session.answers.filter(x => !x.statusCorrect).length;
+    document.getElementById('metaPredictiveQueue').textContent = `${currentRoundErrors * 2} Qs`;
+  }
+
+  // Purge suspended instance document path completely to avoid multi-instance logic loops
+  if (currentUser) {
+    const savedDocRef = doc(db, "users", currentUser.uid, "suspended_sessions", `bodmas_${session.mode}`);
+    deleteDoc(savedDocRef).catch(e => console.error("Database structural garbage collector deferred:", e));
+  }
+
+  executeDisplayLoop();
 }
 
 function executeMixedQuestionLoop() {
@@ -1433,7 +1619,7 @@ function submitAnswer() {
   }
 }
 
-function recomputeLifetimeAverages() {
+function adjustAveragePointsCalculation() {
   const currentTotalQuestions = state.totalQ + session.totalSolved;
   if (currentTotalQuestions > 0) {
     state.averagePointsPerQuestion = state.totalPoints / currentTotalQuestions;
@@ -1441,6 +1627,10 @@ function recomputeLifetimeAverages() {
   if (state.maxPossiblePoints > 0) {
     state.lifetimeEfficiency = (state.totalPoints / state.maxPossiblePoints) * 100;
   }
+}
+
+function recomputeLifetimeAverages() {
+  adjustAveragePointsCalculation();
 }
 
 function advanceSessionQueue() {
@@ -1584,7 +1774,11 @@ async function terminateProcessingSession() {
     }
   }
 
-  displayTerminalOverlay(isPass, correct, total, accuracy, meanTime, peakTime);
+  // Clear out active session cache trackers to reset dirty session logic safely
+  const completeSessionSubject = session.subject;
+  session = { subject: null, questions: [], answers: [] };
+
+  displayTerminalOverlay(isPass, correct, total, accuracy, meanTime, peakTime, completeSessionSubject);
   try { await saveStatePipeline(); } catch (e) { console.error(e); }
 }
 
@@ -1644,6 +1838,7 @@ async function terminateMixedSession() {
     if (labels[2]) labels[2].textContent = "Peak Velocity";
     document.getElementById('sessionMeta').classList.add('hidden');
     document.getElementById('questionView').classList.remove('active');
+    session = { subject: null, questions: [], answers: [] };
     window.showScreen('dashboard');
   };
   btns.appendChild(primary);
@@ -1659,23 +1854,24 @@ function abortActiveSession() {
     document.getElementById('sessionMeta').classList.add('hidden');
     document.getElementById('sessionProgress').classList.add('hidden');
     document.getElementById('questionView').classList.remove('active');
+    session = { subject: null, questions: [], answers: [] };
     window.showScreen('dashboard');
   }
 }
 
-function displayTerminalOverlay(isPass, correct, total, accuracy, meanTime, peakTime) {
+function displayTerminalOverlay(isPass, correct, total, accuracy, meanTime, peakTime, pastSubject) {
   const overlay = document.getElementById('resultOverlay');
   overlay.className = 'result-overlay active';
 
   const heading = document.getElementById('resultHeading');
 
-  if (session.subject === 'ultimate_bodmas') {
+  if (pastSubject === 'ultimate_bodmas') {
     document.getElementById('resultStatus').textContent  = 'Mastery Verification Report';
     heading.textContent = 'Mastery Achieved.';
     heading.className   = `result-heading success`;
 
     let structuralBreakdownHtml = `<div class="mastery-breakdown-box">`;
-    session.roundHistory.forEach(r => {
+    session.roundHistory?.forEach(r => {
       const label = r.round === 1 ? 'Initial round' : (r.round === 2 ? 'Practice Round 1' : `Practice Round ${r.round - 1}`);
       structuralBreakdownHtml += `
         <div class="mastery-breakdown-row">
@@ -1706,7 +1902,7 @@ function displayTerminalOverlay(isPass, correct, total, accuracy, meanTime, peak
     heading.className   = `result-heading ${isPass ? 'success' : 'failure'}`;
     
     document.getElementById('resultSub').textContent = isPass
-      ? `All ${correct} operational arrays synchronized. System score allocation +${session.sessionEarnedPoints.toFixed(2)} vectors.`
+      ? `All ${correct} operational arrays synchronized. System score allocation +${session.sessionEarnedPoints?.toFixed(2) || 0} vectors.`
       : `Compliance performance map index: ${correct} / ${total}. 100% precision execution required to scale next tier.`;
 
     document.getElementById('resAcc').textContent     = `${accuracy}%`;
@@ -1720,11 +1916,12 @@ function displayTerminalOverlay(isPass, correct, total, accuracy, meanTime, peak
 
   const primary = document.createElement('button');
   primary.className = 'btn-primary';
-  primary.textContent = session.subject === 'ultimate_bodmas' ? 'Initialize New Marathon' : (isPass ? 'Advance Tier Run' : 'Re-verify Parameters');
+  primary.textContent = pastSubject === 'ultimate_bodmas' ? 'Initialize New Marathon' : (isPass ? 'Advance Tier Run' : 'Re-verify Parameters');
   primary.onclick = () => {
     overlay.className = 'result-overlay';
-    const nextLv = (session.subject === 'ultimate_bodmas') ? 1 : (isPass ? state.subjects[session.subject][session.mode].level : session.level);
-    window.bootExecutionSession(session.subject, session.mode, nextLv);
+    const targetMode = practiceMode || 'integer';
+    const nextLv = (pastSubject === 'ultimate_bodmas') ? 1 : (isPass ? state.subjects[pastSubject][targetMode].level : session.level);
+    window.bootExecutionSession(pastSubject, targetMode, nextLv);
   };
   btns.appendChild(primary);
 
