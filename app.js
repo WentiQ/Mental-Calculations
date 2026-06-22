@@ -4,7 +4,8 @@
  * Enhanced: Dynamic Skill-Based Scoring Engine
  * Extended: Decimal Mode + Full High-Precision Analytics
  * Unified: Dual-Layer Cloud Recovery Fallback Pipeline
- * Special Edition: Ultimate BODMAS 50-Question Engine (JEE Advanced Pattern)
+ * Special Edition: Ultimate BODMAS Recursive Mastery Engine
+ * Optimized: Real-Time Dynamic Queue Prediction + Fault Escape
  * ============================================================
  */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
@@ -133,7 +134,10 @@ let session = {
   timeLeft: 0, maxTime: 0, questionStart: null,
   totalSolved: 0, totalCorrect: 0, startTime: null,
   isMixed: false, mixedQuestionsTrack: [],
-  sessionEarnedPoints: 0, sessionPossiblePoints: 0
+  sessionEarnedPoints: 0, sessionPossiblePoints: 0,
+  currentRound: 1,
+  roundHistory: [], 
+  masteryAnswers: [] 
 };
 
 let practiceSubject = null;
@@ -155,6 +159,7 @@ window.shiftAnalyticsPeriod    = shiftAnalyticsPeriod;
 window.goToTodayPeriod         = goToTodayPeriod;
 window.exportData              = exportData;
 window.terminateMixedSession   = terminateMixedSession;
+window.abortActiveSession      = abortActiveSession;
 
 // ============================================================
 // AUTH LAYER
@@ -175,6 +180,7 @@ onAuthStateChanged(auth, async (user) => {
     document.getElementById('authBtn').textContent = 'Sign In';
     document.getElementById('userGreeting').textContent = 'Mental Arithmetic Training';
     state = instantiateDefaultState();
+    if (overlay) overlay.active = true;
     if (overlay) overlay.classList.add('active');
     showScreen('dashboard');
   }
@@ -535,122 +541,157 @@ function generateDecimalBodmas(level) {
 // ============================================================
 // ULTIMATE BODMAS GENERATOR PIPELINE (JEE ADVANCED PATTERN)
 // ============================================================
-function generateUltimateBodmasMatrix(mode, queryIndex) {
-  const segment = Math.floor((queryIndex - 1) / 10); 
+function generateUltimateBodmasMatrix(mode, queryIndex, templateOverrideId = null, boundsOverride = null) {
+  const segment = templateOverrideId !== null ? templateOverrideId : Math.floor((queryIndex - 1) / 10); 
   const tag = (segment <= 1) ? "Mind Calculation only" : "Pen is allowed";
 
   for (let cycle = 0; cycle < 100; cycle++) {
     try {
       let expr = "", answer = 0;
+      let operands = {};
 
       if (mode === 'integer') {
-        if (segment === 0) { // TIER 1: Warm-up Complex (1-10) -> Basic Exponents, Interleaved Div/Mult
-          const choose = rand(1, 3);
-          if (choose === 1) { // Bracket in exponent pattern
-            const expBase = rand(2, 3);
-            const expAdd = rand(1, 2);
-            const mult = rand(2, 5);
-            const sub = rand(5, 20);
-            expr = `${expBase}^(${expAdd} + 1) × ${mult} − ${sub} + ${rand(2, 10)}`;
-            answer = Math.pow(expBase, expAdd + 1) * mult - sub + (expr.split('+').pop().trim() * 1);
-          } else if (choose === 2) { // Exponent of a bracket pattern
-            const baseAdd = rand(2, 4);
-            const exp = rand(2, 3);
-            const div = rand(2, 4);
+        if (segment === 0) { 
+          const choose = boundsOverride?.choose || rand(1, 3);
+          if (choose === 1) { 
+            const expBase = boundsOverride?.expBase || rand(2, 3);
+            const expAdd = boundsOverride?.expAdd || rand(1, 2);
+            const mult = boundsOverride?.mult || rand(2, 5);
+            const sub = boundsOverride?.sub || rand(5, 20);
+            const add = boundsOverride?.add || rand(2, 10);
+            expr = `${expBase}^(${expAdd} + 1) × ${mult} − ${sub} + ${add}`;
+            answer = Math.pow(expBase, expAdd + 1) * mult - sub + add;
+            operands = { choose, expBase, expAdd, mult, sub, add };
+          } else if (choose === 2) { 
+            const baseAdd = boundsOverride?.baseAdd || rand(2, 4);
+            const exp = boundsOverride?.exp || rand(2, 3);
+            const div = boundsOverride?.div || rand(2, 4);
+            const add = boundsOverride?.add || rand(5, 15);
             const dividend = Math.pow(baseAdd, exp) * div;
-            expr = `${dividend} ÷ (${baseAdd - 1} + 1)^${exp} + ${rand(5, 15)}`;
-            answer = (dividend / Math.pow(baseAdd, exp)) + (expr.split('+').pop().trim() * 1);
-          } else { // Consecutive Division chains
-            const div3 = rand(2, 3);
-            const div2 = rand(2, 4);
-            const div1 = rand(2, 5);
-            const baseNum = div1 * div2 * div3 * rand(1, 3);
-            const mult = rand(2, 5);
-            expr = `${baseNum} ÷ ${div1} ÷ ${div2} × ${mult} − ${rand(1, 5)}`;
-            answer = ((baseNum / div1) / div2) * mult - (expr.split('−').pop().trim() * 1);
+            expr = `${dividend} ÷ (${baseAdd - 1} + 1)^${exp} + ${add}`;
+            answer = (dividend / Math.pow(baseAdd, exp)) + add;
+            operands = { choose, baseAdd, exp, div, add };
+          } else { 
+            const div3 = boundsOverride?.div3 || rand(2, 3);
+            const div2 = boundsOverride?.div2 || rand(2, 4);
+            const div1 = boundsOverride?.div1 || rand(2, 5);
+            const mult = boundsOverride?.mult || rand(2, 5);
+            const sub = boundsOverride?.sub || rand(1, 5);
+            const baseNum = div1 * div2 * div3 * (boundsOverride?.scalar || rand(1, 3));
+            expr = `${baseNum} ÷ ${div1} ÷ ${div2} × ${mult} − ${sub}`;
+            answer = ((baseNum / div1) / div2) * mult - sub;
+            operands = { choose, div3, div2, div1, mult, sub, scalar: boundsOverride?.scalar || rand(1, 3) };
           }
         } 
-        else if (segment === 1) { // TIER 2: Medium Structures (11-20) -> Traps, Sign Alterations
-          const choose = rand(1, 2);
-          if (choose === 1) { // Bracket Result = 0 (Trap Pattern)
-            const expBase = rand(2, 5);
-            const exp = rand(2, 3);
+        else if (segment === 1) { 
+          const choose = boundsOverride?.choose || rand(1, 2);
+          if (choose === 1) { 
+            const expBase = boundsOverride?.expBase || rand(2, 5);
+            const exp = boundsOverride?.exp || rand(2, 3);
+            const add1 = boundsOverride?.add1 || rand(10, 50);
+            const add2 = boundsOverride?.add2 || rand(5, 20);
+            const finalAdd = boundsOverride?.finalAdd || rand(15, 100);
             const val = Math.pow(expBase, exp);
-            expr = `(${rand(10, 50)} + ${rand(5, 20)}) × (${val} − ${expBase}^${exp}) + ${rand(15, 100)}`;
-            answer = 0 + (expr.split('+').pop().trim() * 1);
-          } else { // Negative Intermediate states
-            const start = rand(10, 30);
-            const sub = rand(40, 80);
-            const add = rand(60, 100);
-            expr = `${start} − ${sub} + ${add} ÷ ${rand(2, 5)} × 2`;
-            // Force strict tracking evaluation checking logic safely
-            const divPart = (add / expr.split('÷').pop().split('×')[0].trim());
-            answer = start - sub + (divPart * 2);
+            expr = `(${add1} + ${add2}) × (${val} − ${expBase}^${exp}) + ${finalAdd}`;
+            answer = finalAdd;
+            operands = { choose, expBase, exp, add1, add2, finalAdd };
+          } else { 
+            const start = boundsOverride?.start || rand(10, 30);
+            const sub = boundsOverride?.sub || rand(40, 80);
+            const add = boundsOverride?.add || rand(60, 100);
+            const div = boundsOverride?.div || rand(2, 5);
+            const safeAdd = add - (add % div); 
+            expr = `${start} − ${sub} + ${safeAdd} ÷ ${div} × 2`;
+            answer = start - sub + ((safeAdd / div) * 2);
+            operands = { choose, start, sub, add: safeAdd, div };
           }
         }
-        else if (segment === 2) { // TIER 3: Medium-Hard Matrix (21-30) -> Interleaved operations chains
-          const base = rand(2, 5);
-          const exp = rand(2, 3);
-          const chainDiv = rand(2, 4);
-          const mult = rand(3, 6);
+        else if (segment === 2) { 
+          const base = boundsOverride?.base || rand(2, 5);
+          const exp = boundsOverride?.exp || rand(2, 3);
+          const chainDiv = boundsOverride?.chainDiv || rand(2, 4);
+          const mult = boundsOverride?.mult || rand(3, 6);
+          const sub = boundsOverride?.sub || rand(2, 5);
+          const add = boundsOverride?.add || rand(10, 40);
           const stepVal = Math.pow(base, exp) * mult;
           
-          expr = `${stepVal} ÷ ${chainDiv} × 2 − (${Math.pow(base, exp)} − ${rand(2, 5)}) + ${rand(10, 40)}`;
-          answer = (stepVal / chainDiv) * 2 - (Math.pow(base, exp) - (expr.split('−')[1].split('+')[0].replace('(','').replace(')','').trim() * 1)) + (expr.split('+').pop().trim() * 1);
+          expr = `${stepVal} ÷ ${chainDiv} × 2 − (${Math.pow(base, exp)} − ${sub}) + ${add}`;
+          answer = (stepVal / chainDiv) * 2 - (Math.pow(base, exp) - sub) + add;
+          operands = { base, exp, chainDiv, mult, sub, add };
         }
-        else if (segment === 3) { // TIER 4: Hard Multi-Bracket Matrices (31-45) -> Multi-layered nests
-          const b1 = rand(2, 4);
-          const b2 = rand(2, 3);
+        else if (segment === 3) { 
+          const b1 = boundsOverride?.b1 || rand(2, 4);
+          const b2 = boundsOverride?.b2 || rand(2, 3);
+          const add1 = boundsOverride?.add1 || rand(4, 10);
+          const add2 = boundsOverride?.add2 || rand(2, 8);
+          const mult1 = boundsOverride?.mult1 || rand(2, 4);
+          const sub = boundsOverride?.sub || rand(5, 15);
+          const divNum = boundsOverride?.divNum || rand(2, 5);
+          const finalAdd = boundsOverride?.finalAdd || rand(10, 50);
+          
           const innerVal = b1 + b2;
-          const mult1 = rand(2, 4);
-          const sub = rand(5, 15);
-          
-          expr = `[(${rand(4, 10)} + ${rand(2, 8)}) × ${mult1} − (${innerVal}^2 − ${sub})] \div ${rand(2, 5)} + ${rand(10, 50)}`;
-          // Direct parsing evaluation logic emulation matching math tree bounds
-          const side1 = (expr.split('(')[1].split(')')[0].split('+')[0].trim()*1 + expr.split('(')[1].split(')')[0].split('+')[1].trim()*1) * mult1;
+          const side1 = (add1 + add2) * mult1;
           const side2 = Math.pow(innerVal, 2) - sub;
-          const divNum = expr.split('\div')[1].split('+')[0].trim() * 1;
-          answer = ((side1 - side2) / divNum) + (expr.split('+').pop().trim() * 1);
+          const leftSide = side1 - side2;
+          const safeLeftSide = leftSide - (leftSide % divNum); 
+
+          expr = `[(${add1} + ${add2}) × ${mult1} − (${innerVal}^2 − ${sub})] ÷ ${divNum} + ${finalAdd}`;
+          answer = (safeLeftSide / divNum) + finalAdd;
+          operands = { b1, b2, add1, add2, mult1, sub, divNum, finalAdd };
         }
-        else { // TIER 5: Grand Finale Style Nests (46-50) -> Complete 3-tier bracket arrays ({ [ ( ) ] })
-          const base = rand(2, 3);
-          const exp = rand(2, 3);
-          const scalar = rand(2, 4);
-          const div = rand(2, 3);
+        else { 
+          const base = boundsOverride?.base || rand(2, 3);
+          const exp = boundsOverride?.exp || rand(2, 3);
+          const scalar = boundsOverride?.scalar || rand(2, 4);
+          const div = boundsOverride?.div || rand(2, 3);
+          const sub1 = boundsOverride?.sub1 || rand(2, 4);
+          const mult1 = boundsOverride?.mult1 || rand(2, 5);
+          const add1 = boundsOverride?.add1 || rand(4, 12);
+          const add2 = boundsOverride?.add2 || rand(5, 15);
+          const sub2 = boundsOverride?.sub2 || rand(5, 25);
+
+          const innerMost = Math.pow(base, exp) - sub1;
+          const bracket2 = innerMost * mult1 + add1;
+          const braces = (bracket2 / div) + add2;
           
-          expr = `${scalar} × \{ [(${Math.pow(base, exp)} − ${rand(2, 4)}) × ${rand(2, 5)} + ${rand(4, 12)}] ÷ ${div} + ${rand(5, 15)} \} − ${rand(5, 25)}`;
-          const innerMost = Math.pow(base, exp) - expr.split('(')[1].split('−')[1].split(')')[0].trim()*1;
-          const bracket2 = innerMost * expr.split(') × ')[1].split(' +')[0].trim()*1 + expr.split('+ ')[1].split(']')[0].trim()*1;
-          const braces = (bracket2 / div) + expr.split('+ ')[2].split(' \}')[0].trim()*1;
-          answer = scalar * braces - (expr.split('− ').pop().trim() * 1);
+          expr = `${scalar} × \{ [(${Math.pow(base, exp)} − ${sub1}) × ${mult1} + ${add1}] ÷ ${div} + ${add2} \} − ${sub2}`;
+          answer = scalar * braces - sub2;
+          operands = { base, exp, scalar, div, sub1, mult1, add1, add2, sub2 };
         }
       } 
-      else { // DECIMAL TARGETED LOGIC ARRAYS
-        if (segment <= 1) { // Light decimals sequence mix
-          const start = randFloat(1.5, 4.5, 1);
-          const mult = randFloat(2.0, 4.0, 1);
-          expr = `(${start} + 0.5) × ${mult} − ${randFloat(0.5, 2.5, 1)}`;
-          answer = (start + 0.5) * mult - (expr.split('− ').pop().trim() * 1);
+      else { 
+        if (segment <= 1) { 
+          const start = boundsOverride?.start || randFloat(1.5, 4.5, 1);
+          const mult = boundsOverride?.mult || randFloat(2.0, 4.0, 1);
+          const sub = boundsOverride?.sub || randFloat(0.5, 2.5, 1);
+          expr = `(${start} + 0.5) × ${mult} − ${sub}`;
+          answer = (start + 0.5) * mult - sub;
+          operands = { start, mult, sub };
         } 
-        else if (segment <= 3) { // Advanced Decimals with bracket-embedded components
-          const base = randFloat(1.2, 2.2, 1);
-          expr = `(${base} + 0.8)^2 ÷ 0.5 + ${randFloat(4.5, 10.5, 1)} − ${randFloat(1.0, 3.0, 1)}`;
-          answer = Math.pow(base + 0.8, 2) / 0.5 + (expr.split('+ ').pop().split(' −')[0].trim() * 1) - (expr.split('− ').pop().trim() * 1);
+        else if (segment <= 3) { 
+          const base = boundsOverride?.base || randFloat(1.2, 2.2, 1);
+          const add = boundsOverride?.add || randFloat(4.5, 10.5, 1);
+          const sub = boundsOverride?.sub || randFloat(1.0, 3.0, 1);
+          expr = `(${base} + 0.8)^2 ÷ 0.5 + ${add} − ${sub}`;
+          answer = Math.pow(base + 0.8, 2) / 0.5 + add - sub;
+          operands = { base, add, sub };
         }
-        else { // Maximum Heavy decimal multi-bracket nested equations
-          const baseDec = randFloat(0.5, 1.5, 1);
-          expr = `[(${baseDec} + 2.5) × 2.5 − 0.5] ÷ 0.2 + ${randFloat(10, 20)}`;
-          answer = (((baseDec + 2.5) * 2.5) - 0.5) / 0.2 + (expr.split('+ ').pop().trim() * 1);
+        else { 
+          const baseDec = boundsOverride?.baseDec || randFloat(0.5, 1.5, 1);
+          const add = boundsOverride?.add || randFloat(10, 20);
+          expr = `[(${baseDec} + 2.5) × 2.5 − 0.5] ÷ 0.2 + ${add}`;
+          answer = (((baseDec + 2.5) * 2.5) - 0.5) / 0.2 + add;
+          operands = { baseDec, add };
         }
       }
 
       answer = roundTo(answer, 3);
       if (!isNaN(answer) && isFinite(answer)) {
-        return { expr, answer, tag };
+        return { expr, answer, tag, templateId: segment, templateGenerator: mode };
       }
     } catch (err) { continue; }
   }
-  return { expr: "(12 ÷ 3) + 2^3 × 2 − 4 + 5", answer: 21, tag: "Mind Calculation only" };
+  return { expr: "(12 ÷ 3) + 2^3 × 2 − 4 + 5", answer: 21, tag: "Mind Calculation only", templateId: 0, templateGenerator: mode };
 }
 
 function generateQuestion(subjectId, level, mode = 'integer') {
@@ -817,9 +858,9 @@ function renderDashboardCore() {
       card.className = 'subject-card ultimate-bodmas-card';
       card.innerHTML = `
         <span class="subject-icon">${s.icon}</span>
-        <span class="subject-level-badge critical-badge-flavor">Marathon</span>
+        <span class="subject-level-badge critical-badge-flavor">Recursive</span>
         <div class="subject-name">${s.name}</div>
-        <div class="subject-meta">50 Operators Matrix Workspace<br><span style="color:var(--red-light)">No Time limit · 100% Precision Guard</span></div>
+        <div class="subject-meta">50 Operators Matrix Workspace<br><span style="color:var(--red-light)">Persistent Loops · 100% Precision Lock</span></div>
         <div class="subject-progress-bar" style="background:rgba(158,79,79,0.1)"><div class="subject-progress-fill" style="width:${totalMarathonsCleared > 0 ? 100 : 0}%; background:var(--red-light)"></div></div>
       `;
       card.addEventListener('click', () => { if (!currentUser) { toggleAuthenticationState(); return; } showScreen('practice'); executeSubjectProfiling(s.id); });
@@ -938,6 +979,7 @@ function initializePracticeRoutingView() {
   document.getElementById('sessionProgress').classList.add('hidden');
   document.getElementById('questionView').classList.remove('active');
   document.getElementById('mixedExitBtn').classList.add('hidden');
+  document.getElementById('generalExitBtn').classList.add('hidden');
   document.getElementById('subjectSelectView').style.display = '';
 
   const selGrid = document.getElementById('practiceSubjectsGrid');
@@ -962,9 +1004,9 @@ function initializePracticeRoutingView() {
       card.className = 'subject-card ultimate-bodmas-card';
       card.innerHTML = `
         <span class="subject-icon">${s.icon}</span>
-        <span class="subject-level-badge critical-badge-flavor">Marathon</span>
+        <span class="subject-level-badge critical-badge-flavor">Recursive</span>
         <div class="subject-name">${s.name}</div>
-        <div class="subject-meta">Continuous full operator equations. No timer logic applied.</div>
+        <div class="subject-meta">Continuous full operator equations. Self-correcting mastery iterations.</div>
         <div class="subject-progress-bar" style="background:rgba(158,79,79,0.1)"><div class="subject-progress-fill" style="width:${cleared > 0 ? 100 : 0}%"></div></div>
       `;
       card.addEventListener('click', () => executeSubjectProfiling(s.id));
@@ -1012,8 +1054,8 @@ function executeSubjectProfiling(subjectId) {
   document.getElementById('modeSelectTitle').textContent = profile.name;
 
   if (subjectId === 'ultimate_bodmas') {
-    document.getElementById('modeBadgeInteger').textContent = `${intData.clearedLevels.includes(1) ? 'Marathon Cleared' : 'Incomplete'}`;
-    document.getElementById('modeBadgeDecimal').textContent = `${decData.clearedLevels.includes(1) ? 'Marathon Cleared' : 'Incomplete'}`;
+    document.getElementById('modeBadgeInteger').textContent = `${intData.clearedLevels.includes(1) ? 'Mastery Cleared' : 'Incomplete'}`;
+    document.getElementById('modeBadgeDecimal').textContent = `${decData.clearedLevels.includes(1) ? 'Mastery Cleared' : 'Incomplete'}`;
   } else {
     document.getElementById('modeBadgeInteger').textContent = `Level ${intData.level} · ${intData.clearedLevels.length} cleared`;
     document.getElementById('modeBadgeDecimal').textContent = `Level ${decData.level} · ${decData.clearedLevels.length} cleared`;
@@ -1029,7 +1071,7 @@ function selectMode(mode) {
   document.getElementById('levelSelectTitle').textContent = `${profile.name} · ${mode === 'decimal' ? 'Decimal' : 'Integer'}`;
   
   if (practiceSubject === 'ultimate_bodmas') {
-    document.getElementById('levelSelectSub').textContent = "50-Question complete arithmetic sequencing map initialized. No timer limits apply. 100% precision required.";
+    document.getElementById('levelSelectSub').textContent = "50-Question configuration parameters with adaptive, structured self-correcting precision loops.";
     buildUltimateBodmasSelector(practiceSubject, mode);
   } else {
     const modeData = state.subjects[practiceSubject][mode];
@@ -1047,7 +1089,7 @@ function buildUltimateBodmasSelector(subjectId, mode) {
   const row = document.createElement('div');
   row.className = `level-row current`;
   row.innerHTML = `
-    <div class="level-num">Marathon Core</div>
+    <div class="level-num">Adaptive Track</div>
     <div class="level-desc" style="color:var(--white)">
       50 Structured questions containing Brackets, Exponents, Division, Multiplication, Addition, Subtraction.
     </div>
@@ -1097,7 +1139,11 @@ function bootExecutionSession(subjectId, mode, level) {
   
   for (let i = 0; i < total; i++) {
     if (subjectId === 'ultimate_bodmas') {
-      questions.push(generateUltimateBodmasMatrix(mode, i + 1));
+      const q = generateUltimateBodmasMatrix(mode, i + 1);
+      q.id = `q_r1_${i+1}`;
+      q.sourceQuestionId = q.id;
+      q.roundNumber = 1;
+      questions.push(q);
     } else {
       questions.push(generateQuestion(subjectId, level, mode));
     }
@@ -1109,7 +1155,10 @@ function bootExecutionSession(subjectId, mode, level) {
     timeLeft: 0, maxTime: getAdaptiveTimeLimit(subjectId, level, mode),
     questionStart: null, totalSolved: 0, totalCorrect: 0, startTime: Date.now(),
     sessionId: Date.now().toString(36), isMixed: false, mixedQuestionsTrack: [],
-    sessionEarnedPoints: 0, sessionPossiblePoints: 0
+    sessionEarnedPoints: 0, sessionPossiblePoints: 0,
+    currentRound: 1,
+    roundHistory: [],
+    masteryAnswers: []
   };
 
   document.getElementById('subjectSelectView').style.display = 'none';
@@ -1117,17 +1166,26 @@ function bootExecutionSession(subjectId, mode, level) {
   document.getElementById('sessionProgress').classList.remove('hidden');
   document.getElementById('questionView').classList.add('active');
   document.getElementById('mixedExitBtn').classList.add('hidden');
+  
+  const genExit = document.getElementById('generalExitBtn');
+  if (genExit) genExit.classList.remove('hidden');
 
   document.getElementById('metaSubject').textContent = discipline.name;
   document.getElementById('metaMode').textContent    = mode === 'decimal' ? 'Decimal' : 'Integer';
-  document.getElementById('metaLevel').textContent   = (subjectId === 'ultimate_bodmas') ? 'Marathon' : level;
+  document.getElementById('metaLevel').textContent   = (subjectId === 'ultimate_bodmas') ? 'Round 1' : level;
   document.getElementById('metaStreak').textContent  = 0;
   document.getElementById('metaScore').textContent   = `0.00`;
 
+  const predictiveChip = document.getElementById('metaPredictiveQueueChip');
   if (subjectId === 'ultimate_bodmas') {
     document.getElementById('timerRingContainer').style.display = 'none';
+    if (predictiveChip) {
+      predictiveChip.style.display = 'flex';
+      document.getElementById('metaPredictiveQueue').textContent = '0 Qs';
+    }
   } else {
     document.getElementById('timerRingContainer').style.display = 'block';
+    if (predictiveChip) predictiveChip.style.display = 'none';
     const arc = document.getElementById('timerArc');
     if (arc) {
       const circ = 2 * Math.PI * 48;
@@ -1152,7 +1210,14 @@ function bootMixedInfiniteSession() {
   document.getElementById('sessionProgress').classList.add('hidden');
   document.getElementById('questionView').classList.add('active');
   document.getElementById('mixedExitBtn').classList.remove('hidden');
+  
+  const genExit = document.getElementById('generalExitBtn');
+  if (genExit) genExit.classList.add('hidden');
+  
   document.getElementById('timerRingContainer').style.display = 'block';
+
+  const predictiveChip = document.getElementById('metaPredictiveQueueChip');
+  if (predictiveChip) predictiveChip.style.display = 'none';
 
   document.getElementById('metaSubject').textContent = 'Mixed';
   document.getElementById('metaMode').textContent    = 'Infinite';
@@ -1188,14 +1253,25 @@ function executeDisplayLoop() {
   const q = session.questions[session.current];
   const total = session.questions.length;
 
-  document.getElementById('questionNum').textContent  = `Operational Unit ${session.current + 1} of ${total}`;
+  if (session.subject === 'ultimate_bodmas') {
+    const roundPrefix = session.currentRound === 1 ? 'Round 1' : (session.currentRound === 2 ? 'Round 2 (Practice)' : `Round ${session.currentRound} (Mastery)`);
+    document.getElementById('questionNum').textContent  = `${roundPrefix} — Question ${session.current + 1} of ${total}`;
+    document.getElementById('metaLevel').textContent = session.currentRound === 1 ? `Round 1` : `Round ${session.currentRound}`;
+    
+    // Calculate live dynamic predictive queue values (2 * current round errors)
+    const currentRoundErrors = session.answers.filter(x => !x.statusCorrect).length;
+    document.getElementById('metaPredictiveQueue').textContent = `${currentRoundErrors * 2} Qs`;
+  } else {
+    document.getElementById('questionNum').textContent  = `Operational Unit ${session.current + 1} of ${total}`;
+  }
+  
   document.getElementById('questionExpr').textContent = q.expr;
 
   const tagEl = document.getElementById('questionTag');
   if (session.subject === 'ultimate_bodmas' && q.tag) {
     tagEl.textContent = q.tag;
     tagEl.style.display = 'inline-block';
-    if (q.tag === 'Pen is allowed') {
+    if (q.tag === "Pen is allowed") {
       tagEl.className = "question-tag tag-hard";
     } else {
       tagEl.className = "question-tag tag-easy";
@@ -1259,7 +1335,11 @@ function processTimeoutFault() {
   const scoreMetrics = calculateScoreVector(session.maxTime, 0, false);
   session.sessionPossiblePoints += scoreMetrics.maxPoints;
 
-  session.answers.push({ chosenValue: null, statusCorrect: false, expression: q.expr, actualValue: q.answer, scoreMetrics });
+  const ansObj = { chosenValue: null, statusCorrect: false, expression: q.expr, actualValue: q.answer, scoreMetrics, questionObj: q };
+  session.answers.push(ansObj);
+  if (session.subject === 'ultimate_bodmas') {
+    session.masteryAnswers.push(ansObj);
+  }
   session.times.push(dt);
   session.streak = 0;
 
@@ -1268,11 +1348,7 @@ function processTimeoutFault() {
   refreshLiveSessionMetaChips();
   
   triggerFullScreenFaultReview(q.expr, q.answer, () => {
-    if (session.subject === 'ultimate_bodmas') {
-      terminateProcessingSession(); 
-    } else {
-      advanceSessionQueue();
-    }
+    advanceSessionQueue();
   });
 }
 
@@ -1321,7 +1397,11 @@ function submitAnswer() {
     inp.className = 'answer-input wrong';
   }
 
-  session.answers.push({ chosenValue: userVal, statusCorrect: correct, expression: q.expr, actualValue: q.answer, scoreMetrics });
+  const ansObj = { chosenValue: userVal, statusCorrect: correct, expression: q.expr, actualValue: q.answer, scoreMetrics, questionObj: q };
+  session.answers.push(ansObj);
+  if (session.subject === 'ultimate_bodmas') {
+    session.masteryAnswers.push(ansObj);
+  }
   session.times.push(dt);
   session.totalSolved++;
 
@@ -1347,11 +1427,7 @@ function submitAnswer() {
       setTimeout(advanceSessionQueue, 1000);
     } else {
       triggerFullScreenFaultReview(q.expr, q.answer, () => {
-        if (session.subject === 'ultimate_bodmas') {
-          terminateProcessingSession();
-        } else {
-          advanceSessionQueue();
-        }
+        advanceSessionQueue();
       });
     }
   }
@@ -1370,8 +1446,48 @@ function recomputeLifetimeAverages() {
 function advanceSessionQueue() {
   session.current++;
   if (session.current >= session.questions.length) {
+    if (session.subject === 'ultimate_bodmas') {
+      evaluateUltimateBodmasRound();
+    } else {
+      terminateProcessingSession();
+    }
+  } else {
+    executeDisplayLoop();
+  }
+}
+
+function evaluateUltimateBodmasRound() {
+  const totalInRound = session.questions.length;
+  const incorrectQuestions = session.answers.filter(x => !x.statusCorrect);
+  const correctCount = totalInRound - incorrectQuestions.length;
+  
+  session.roundHistory.push({
+    round: session.currentRound,
+    total: totalInRound,
+    correct: correctCount,
+    wrong: incorrectQuestions.length
+  });
+
+  if (incorrectQuestions.length === 0) {
     terminateProcessingSession();
   } else {
+    session.currentRound++;
+    const nextRoundQuestions = [];
+    
+    incorrectQuestions.forEach((ans, index) => {
+      const parentQ = ans.questionObj;
+      for (let k = 0; k < 2; k++) {
+        const nextQ = generateUltimateBodmasMatrix(session.mode, null, parentQ.templateId);
+        nextQ.id = `q_r${session.currentRound}_idx_${index}_k_${k}`;
+        nextQ.sourceQuestionId = parentQ.sourceQuestionId;
+        nextQ.roundNumber = session.currentRound;
+        nextRoundQuestions.push(nextQ);
+      }
+    });
+
+    session.questions = nextRoundQuestions;
+    session.answers = [];
+    session.current = 0;
     executeDisplayLoop();
   }
 }
@@ -1384,6 +1500,11 @@ function advanceMixedQueue() {
 function refreshLiveSessionMetaChips() {
   document.getElementById('metaStreak').textContent = session.streak;
   document.getElementById('metaScore').textContent = session.sessionEarnedPoints.toFixed(2);
+  
+  if (session.subject === 'ultimate_bodmas') {
+    const currentRoundErrors = session.answers.filter(x => !x.statusCorrect).length;
+    document.getElementById('metaPredictiveQueue').textContent = `${currentRoundErrors * 2} Qs`;
+  }
 }
 
 // ============================================================
@@ -1394,13 +1515,25 @@ async function terminateProcessingSession() {
     clearInterval(session.timerInterval);
   }
 
-  const total    = session.questions.length;
-  const correct  = session.answers.filter(x => x.statusCorrect).length;
-  const perfect  = correct === total;
-  const elapsed  = Date.now() - session.startTime;
-  const accuracy = Math.round((correct / total) * 100);
+  let total, correct, accuracy, isPass;
+  
+  if (session.subject === 'ultimate_bodmas') {
+    total = session.masteryAnswers.length;
+    correct = session.masteryAnswers.filter(x => x.statusCorrect).length;
+    accuracy = session.roundHistory[0]?.total ? Math.round((session.roundHistory[0].correct / session.roundHistory[0].total) * 100) : 0;
+    isPass = session.roundHistory[0]?.wrong === 0; 
+  } else {
+    total = session.questions.length;
+    correct = session.answers.filter(x => x.statusCorrect).length;
+    accuracy = Math.round((correct / total) * 100);
+    isPass = correct === total;
+  }
 
-  const correctTimes = session.times.filter((_, i) => session.answers[i]?.statusCorrect);
+  const elapsed  = Date.now() - session.startTime;
+  const correctTimes = session.times.filter((_, i) => {
+    if (session.subject === 'ultimate_bodmas') return session.masteryAnswers[i]?.statusCorrect;
+    return session.answers[i]?.statusCorrect;
+  });
   const meanTime = correctTimes.length ? Math.round(correctTimes.reduce((a, b) => a + b, 0) / correctTimes.length) : 0;
   const peakTime = correctTimes.length ? Math.min(...correctTimes) : 0;
 
@@ -1410,7 +1543,7 @@ async function terminateProcessingSession() {
   modeData.totalTime     += elapsed;
   if (session.streak > modeData.bestStreak) modeData.bestStreak = session.streak;
 
-  if (perfect) {
+  if (isPass) {
     if (!modeData.clearedLevels.includes(session.level)) modeData.clearedLevels.push(session.level);
     if (session.level === modeData.level) modeData.level = session.level + 1;
   }
@@ -1424,30 +1557,34 @@ async function terminateProcessingSession() {
 
   state.history.push({
     subjectName: session.subjectName, mode: session.mode, level: session.level,
-    correct, total, elapsed, perfect, accuracy, date: Date.now(),
+    correct, total, elapsed, perfect: isPass, accuracy, date: Date.now(),
     pointsEarned: session.sessionEarnedPoints, pointsPossible: session.sessionPossiblePoints
   });
   if (state.history.length > 80) state.history.shift();
 
   if (idbDb) {
-    for (let i = 0; i < session.questions.length; i++) {
-      const ans = session.answers[i];
+    const activeAnswers = session.subject === 'ultimate_bodmas' ? session.masteryAnswers : session.answers;
+    for (let i = 0; i < activeAnswers.length; i++) {
+      const ans = activeAnswers[i];
       if (!ans) continue;
       await idbSaveRecord({
         timestamp:  session.startTime + (session.times[i] || 0),
         discipline: session.subjectName, section: session.mode, level: session.level,
-        question:   session.questions[i].expr, answer: session.questions[i].answer,
+        question:   ans.questionObj.expr, answer: ans.questionObj.answer,
         userAnswer: ans ? ans.chosenValue : null, correct: ans ? ans.statusCorrect : false,
         timeTaken:  ans ? (session.times[i] || 0) / 1000 : 0, sessionId: session.sessionId,
         maxPoints:  ans?.scoreMetrics.maxPoints || 0,
         earnedPoints: ans?.scoreMetrics.earnedPoints || 0,
         efficiency: ans?.scoreMetrics.efficiency || 0,
-        timeLimit:  session.maxTime
+        timeLimit:  session.maxTime,
+        templateId: ans.questionObj.templateId,
+        sourceQuestionId: ans.questionObj.sourceQuestionId,
+        roundNumber: ans.questionObj.roundNumber
       });
     }
   }
 
-  displayTerminalOverlay(perfect, correct, total, accuracy, meanTime, peakTime);
+  displayTerminalOverlay(isPass, correct, total, accuracy, meanTime, peakTime);
   try { await saveStatePipeline(); } catch (e) { console.error(e); }
 }
 
@@ -1514,39 +1651,79 @@ async function terminateMixedSession() {
   try { await saveStatePipeline(); } catch (e) { console.error(e); }
 }
 
+function abortActiveSession() {
+  if (confirm("Are you sure you want to exit this running execution sequence? Your progress metrics for this runtime array will be reset to zero.")) {
+    if (session.timerInterval) {
+      clearInterval(session.timerInterval);
+    }
+    document.getElementById('sessionMeta').classList.add('hidden');
+    document.getElementById('sessionProgress').classList.add('hidden');
+    document.getElementById('questionView').classList.remove('active');
+    window.showScreen('dashboard');
+  }
+}
+
 function displayTerminalOverlay(isPass, correct, total, accuracy, meanTime, peakTime) {
   const overlay = document.getElementById('resultOverlay');
   overlay.className = 'result-overlay active';
 
-  document.getElementById('resultStatus').textContent  = isPass ? 'Task Profile Clear' : 'Discipline Standards Deviation';
   const heading = document.getElementById('resultHeading');
-  heading.textContent = isPass ? 'Mastery Achieved.' : 'Precision Threshold Fault.';
-  heading.className   = `result-heading ${isPass ? 'success' : 'failure'}`;
 
   if (session.subject === 'ultimate_bodmas') {
-    document.getElementById('resultSub').textContent = isPass
-      ? `Phenomenal computation! All 50 structured Ultimate BODMAS operators completed with perfect accuracy.`
-      : `Failed to clear Marathon matrix. Logged: ${correct} / ${total}. 100% precision execution required to qualify.`;
+    document.getElementById('resultStatus').textContent  = 'Mastery Verification Report';
+    heading.textContent = 'Mastery Achieved.';
+    heading.className   = `result-heading success`;
+
+    let structuralBreakdownHtml = `<div class="mastery-breakdown-box">`;
+    session.roundHistory.forEach(r => {
+      const label = r.round === 1 ? 'Initial round' : (r.round === 2 ? 'Practice Round 1' : `Practice Round ${r.round - 1}`);
+      structuralBreakdownHtml += `
+        <div class="mastery-breakdown-row">
+          <span class="m-round-lbl">${label}:</span>
+          <span class="m-round-val">${r.total} Qs (${r.wrong} Errors)</span>
+        </div>`;
+    });
+    structuralBreakdownHtml += `
+      <div class="mastery-breakdown-divider"></div>
+      <div class="mastery-breakdown-row total-highlight">
+        <span class="m-round-lbl">Total Attempted:</span>
+        <span class="m-round-val">${total} Questions</span>
+      </div>
+    </div>`;
+
+    document.getElementById('resultSub').innerHTML = `
+      All recursive verification pipelines complete. Initial Accuracy profile scaled at ${accuracy}%.
+      ${structuralBreakdownHtml}
+    `;
+
+    document.getElementById('resAcc').textContent     = `100%`;
+    document.getElementById('resAvgTime').textContent = meanTime ? `${(meanTime / 1000).toFixed(1)}s` : '—';
+    document.getElementById('resBest').textContent    = peakTime ? `${(peakTime / 1000).toFixed(1)}s` : '—';
+    document.getElementById('resStreak').textContent  = session.streak;
   } else {
+    document.getElementById('resultStatus').textContent  = isPass ? 'Task Profile Clear' : 'Discipline Standards Deviation';
+    heading.textContent = isPass ? 'Mastery Achieved.' : 'Precision Threshold Fault.';
+    heading.className   = `result-heading ${isPass ? 'success' : 'failure'}`;
+    
     document.getElementById('resultSub').textContent = isPass
       ? `All ${correct} operational arrays synchronized. System score allocation +${session.sessionEarnedPoints.toFixed(2)} vectors.`
       : `Compliance performance map index: ${correct} / ${total}. 100% precision execution required to scale next tier.`;
-  }
 
-  document.getElementById('resAcc').textContent     = `${accuracy}%`;
-  document.getElementById('resAvgTime').textContent = meanTime ? `${(meanTime / 1000).toFixed(1)}s` : '—';
-  document.getElementById('resBest').textContent    = peakTime ? `${(peakTime / 1000).toFixed(1)}s` : '—';
-  document.getElementById('resStreak').textContent  = session.streak;
+    document.getElementById('resAcc').textContent     = `${accuracy}%`;
+    document.getElementById('resAvgTime').textContent = meanTime ? `${(meanTime / 1000).toFixed(1)}s` : '—';
+    document.getElementById('resBest').textContent    = peakTime ? `${(peakTime / 1000).toFixed(1)}s` : '—';
+    document.getElementById('resStreak').textContent  = session.streak;
+  }
 
   const btns = document.getElementById('resultBtns');
   btns.innerHTML = '';
 
   const primary = document.createElement('button');
   primary.className = 'btn-primary';
-  primary.textContent = isPass ? (session.subject === 'ultimate_bodmas' ? 'Run Again' : 'Advance Tier Run') : 'Re-verify Parameters';
+  primary.textContent = session.subject === 'ultimate_bodmas' ? 'Initialize New Marathon' : (isPass ? 'Advance Tier Run' : 'Re-verify Parameters');
   primary.onclick = () => {
     overlay.className = 'result-overlay';
-    const nextLv = isPass ? (session.subject === 'ultimate_bodmas' ? 1 : state.subjects[session.subject][session.mode].level) : session.level;
+    const nextLv = (session.subject === 'ultimate_bodmas') ? 1 : (isPass ? state.subjects[session.subject][session.mode].level : session.level);
     window.bootExecutionSession(session.subject, session.mode, nextLv);
   };
   btns.appendChild(primary);
@@ -1760,11 +1937,11 @@ function renderBreakdownCards(recs) {
       card.innerHTML = `
         <div class="breakdown-header">
           <div class="breakdown-name">${s.name}</div>
-          <div class="breakdown-level">${s.id === 'ultimate_bodmas' ? 'Marathon Core' : `Lv ${intData.level} / ${decData.level}`}</div>
+          <div class="breakdown-level">${s.id === 'ultimate_bodmas' ? 'Mastery Engine' : `Lv ${intData.level} / ${decData.level}`}</div>
         </div>
         <div class="breakdown-mode-tabs">
           <button class="breakdown-mode-tab active" onclick="this.parentElement.querySelectorAll('.breakdown-mode-tab').forEach(b=>b.classList.remove('active'));this.classList.add('active');this.closest('.breakdown-card').querySelector('.mode-rows-integer').style.display='';this.closest('.breakdown-card').querySelector('.mode-rows-decimal').style.display='none';">Integer</button>
-          <button class="breakdown-mode-tab" onclick="this.parentElement.querySelectorAll('.breakdown-mode-tab').forEach(b=>b.classList.remove('active'));this.classList.add('active');this.closest('.breakdown-card').querySelector('.mode-rows-integer').style.display='none';this.closest('.breakdown-card').querySelector('.mode-rows-decimal').style.display='';">Decimal</button>
+          <button class="breakdown-mode-tab" onclick="this.parentElement.querySelectorAll('.breakdown-mode-tab').forEach(b=>b.classList.remove('active'));this.classList.add('active');this.closest('.breakdown-card').querySelector('.mode-rows-decimal').style.display='';this.closest('.breakdown-card').querySelector('.mode-rows-integer').style.display='none';">Decimal</button>
         </div>
         <div class="breakdown-rows mode-rows-integer">${buildRows(intRecs)}</div>
         <div class="breakdown-rows mode-rows-decimal" style="display:none">${buildRows(decRecs)}</div>
@@ -1830,7 +2007,7 @@ async function exportData(format) {
     const blob = new Blob([JSON.stringify(recs, null, 2)], { type: 'application/json' });
     downloadBlob(blob, 'calculus_dynamic_analytics.json');
   } else {
-    const headers = ['timestamp', 'discipline', 'section', 'level', 'question', 'answer', 'userAnswer', 'correct', 'timeTaken', 'maxPoints', 'earnedPoints', 'efficiency', 'timeLimit'];
+    const headers = ['timestamp', 'discipline', 'section', 'level', 'question', 'answer', 'userAnswer', 'correct', 'timeTaken', 'maxPoints', 'earnedPoints', 'efficiency', 'timeLimit', 'templateId', 'sourceQuestionId', 'roundNumber'];
     const rows = recs.map(r => headers.map(h => JSON.stringify(r[h] ?? '')).join(','));
     const csv = [headers.join(','), ...rows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });

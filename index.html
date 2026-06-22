@@ -201,6 +201,10 @@
           <span class="meta-chip-label">Streak Chain</span>
           <span class="meta-chip-val" id="metaStreak">0</span>
         </div>
+        <div class="meta-chip" id="metaPredictiveQueueChip" style="display: none;">
+          <span class="meta-chip-label">Forecast Next Load</span>
+          <span class="meta-chip-val" id="metaPredictiveQueue" style="color: var(--red-light)">0 Qs</span>
+        </div>
         <div class="meta-chip">
           <span class="meta-chip-label">Points Yielded</span>
           <span class="meta-chip-val" id="metaScore" style="color:var(--green-light)">0.00</span>
@@ -226,6 +230,8 @@
             <div class="feedback-msg" id="feedbackMsg"></div>
             <button class="submit-btn" id="submitBtn" onclick="window.submitAnswer()">Verify Vector</button>
             <button class="exit-mixed-btn hidden" id="mixedExitBtn" onclick="window.terminateMixedSession()">Halt Calculation Sequence</button>
+            
+            <button class="exit-mixed-btn hidden" id="generalExitBtn" style="margin-top: 1rem; background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.1); color: var(--mist);" onclick="window.abortActiveSession()">Abort Active Sequence</button>
           </div>
         </div>
       </div>
@@ -286,7 +292,7 @@
   <div class="result-overlay" id="resultOverlay">
     <div class="result-status" id="resultStatus">—</div>
     <h2 class="result-heading" id="resultHeading">—</h2>
-    <p class="result-sub" id="resultSub">—</p>
+    <div class="result-sub" id="resultSub">—</div>
     <div class="result-stats">
       <div class="result-stat">
         <div class="result-stat-label">Precision Index</div>
@@ -297,7 +303,7 @@
         <div class="result-stat-val" id="resAvgTime">—</div>
       </div>
       <div class="result-stat">
-        <div class="result-stat-label">Peak Velocity</div>
+        <div class="result-stat-label">Session Duration</div>
         <div class="result-stat-val" id="resBest">—</div>
       </div>
       <div class="result-stat">
