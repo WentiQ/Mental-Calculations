@@ -4,7 +4,6 @@
  * Enhanced: Dynamic Skill-Based Scoring Engine
  * Extended: Decimal Mode + Full High-Precision Analytics
  * Unified: Dual-Layer Cloud Recovery Fallback Pipeline
- * Special Edition: Ultimate BODMAS 50-Question Engine (JEE Advanced Pattern)
  * ============================================================
  */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
@@ -48,12 +47,11 @@ const SUBJECTS = [
   { id: 'subtraction',    name: 'Subtraction',    icon: '−',  symbol: '-' },
   { id: 'multiplication', name: 'Multiplication', icon: '×',  symbol: '×' },
   { id: 'division',       name: 'Division',       icon: '÷',  symbol: '÷' },
-  { id: 'bodmas',         name: 'BODMAS',         icon: '( )', symbol: '' },
-  { id: 'ultimate_bodmas',name: 'Ultimate BODMAS',icon: '🔱', symbol: '' }
+  { id: 'bodmas',         name: 'BODMAS',         icon: '( )', symbol: '' }
 ];
 
-const ABSOLUTE_MAX_TIME = 50; 
-const REVIEW_SCREEN_DURATION_MS = 2500; 
+const ABSOLUTE_MAX_TIME = 50; // Dynamic ceiling variable used to map max points
+const REVIEW_SCREEN_DURATION_MS = 2500; // Duration parameter for distraction free review lockouts
 
 // ============================================================
 // INDEXEDDB SETUP
@@ -62,7 +60,7 @@ let idbDb = null;
 
 function openIDB() {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open('calculus_analytics', 5);
+    const req = indexedDB.open('calculus_analytics', 4); // Incremented schema version for dynamic point variables
     req.onupgradeneeded = (e) => {
       const db = e.target.result;
       if (db.objectStoreNames.contains('records')) {
@@ -210,6 +208,7 @@ function instantiateDefaultState() {
     lastPracticeDay: null,
     currentDayStreak: 0,
     longestDayStreak: 0,
+    // Skill Scoring Structural Entities
     totalPoints: 0,
     normalModePoints: 0,
     mixedModePoints: 0,
@@ -231,6 +230,7 @@ function mergeStateSafetyChecks(incoming) {
   base.currentDayStreak  = incoming.currentDayStreak || 0;
   base.longestDayStreak  = incoming.longestDayStreak || 0;
 
+  // Sync point layers using double protection
   base.totalPoints              = incoming.totalPoints || 0;
   base.normalModePoints         = incoming.normalModePoints || 0;
   base.mixedModePoints          = incoming.mixedModePoints || 0;
@@ -244,12 +244,12 @@ function mergeStateSafetyChecks(incoming) {
     if (incoming.subjects && incoming.subjects[s.id]) {
       const inc = incoming.subjects[s.id];
       ['integer', 'decimal'].forEach(m => {
-        const modeSrc = inc[m] || inc;
+        const modeSrc = inc[m] || inc; // Backward compatibility fallback
         if (modeSrc) {
           base.subjects[s.id][m] = {
             level:         modeSrc.level || 1,
             clearedLevels: modeSrc.clearedLevels || [],
-            totalQ:         modeSrc.totalQ || 0,
+            totalQ:        modeSrc.totalQ || 0,
             totalCorrect:  modeSrc.totalCorrect || 0,
             bestStreak:    modeSrc.bestStreak || 0,
             totalTime:     modeSrc.totalTime || 0
@@ -311,23 +311,16 @@ function updateDayStreak() {
 }
 
 // ============================================================
-// ADAPTIVE SCORING ENGINE
+// ADAPTIVE SCORING SUB-ENGINE ENGINE
 // ============================================================
 function calculateMaxPoints(timeLimit) {
-  if (timeLimit === 0) return 1.00; 
   const calculatedPoints = timeLimit / ABSOLUTE_MAX_TIME;
   return Math.min(Math.max(calculatedPoints, 0.10), 1.00);
 }
 
 function calculateScoreVector(timeLimit, timeLeft, isCorrect) {
   const maxPoints = calculateMaxPoints(timeLimit);
-  if (!isCorrect) {
-    return { maxPoints, earnedPoints: 0, efficiency: 0 };
-  }
-  if (timeLimit === 0) {
-    return { maxPoints, earnedPoints: 1.00, efficiency: 100 }; 
-  }
-  if (timeLeft <= 0) {
+  if (!isCorrect || timeLeft <= 0) {
     return { maxPoints, earnedPoints: 0, efficiency: 0 };
   }
   const speedRatio = Math.min(Math.max(timeLeft / timeLimit, 0.0), 1.0);
@@ -349,21 +342,6 @@ function generateBounds(level) {
   if (level <= 20)  return { min: 500,   max: 4999 };
   if (level <= 40)  return { min: 2000,  max: 15000 };
   return { min: 10000, max: 999999 };
-}
-
-function roundTo(val, places) {
-  return Math.round(val * Math.pow(10, places)) / Math.pow(10, places);
-}
-
-function randFloat(min, max, decimals) {
-  const v = Math.random() * (max - min) + min;
-  return roundTo(v, decimals);
-}
-
-function ensureDecimal(q) {
-  const hasDecimalOperand = q.expr.match(/\d+\.\d+/);
-  const hasDecimalAnswer = !Number.isInteger(q.answer);
-  return hasDecimalOperand || hasDecimalAnswer;
 }
 
 function generateIntegerQuestion(subjectId, level) {
@@ -394,8 +372,6 @@ function generateIntegerQuestion(subjectId, level) {
     }
     case 'bodmas':
       return generateBodmasInteger(level);
-    case 'ultimate_bodmas':
-      return generateUltimateBodmasMatrix('integer', level);
   }
 }
 
@@ -421,6 +397,21 @@ function generateBodmasInteger(level) {
   return { expr: `${a} × (${b} + ${c}) − ${d} × ${e}`, answer: a * (b + c) - d * e };
 }
 
+function roundTo(val, places) {
+  return Math.round(val * Math.pow(10, places)) / Math.pow(10, places);
+}
+
+function randFloat(min, max, decimals) {
+  const v = Math.random() * (max - min) + min;
+  return roundTo(v, decimals);
+}
+
+function ensureDecimal(q) {
+  const hasDecimalOperand = q.expr.match(/\d+\.\d+/);
+  const hasDecimalAnswer = !Number.isInteger(q.answer);
+  return hasDecimalOperand || hasDecimalAnswer;
+}
+
 function generateDecimalQuestion(subjectId, level) {
   switch (subjectId) {
     case 'addition':       return generateDecimalAddition(level);
@@ -428,7 +419,6 @@ function generateDecimalQuestion(subjectId, level) {
     case 'multiplication': return generateDecimalMultiplication(level);
     case 'division':       return generateDecimalDivision(level);
     case 'bodmas':         return generateDecimalBodmas(level);
-    case 'ultimate_bodmas':return generateUltimateBodmasMatrix('decimal', level);
   }
 }
 
@@ -532,127 +522,6 @@ function generateDecimalBodmas(level) {
   return { expr: `(2.5 + 3) × 4`, answer: 22 };
 }
 
-// ============================================================
-// ULTIMATE BODMAS GENERATOR PIPELINE (JEE ADVANCED PATTERN)
-// ============================================================
-function generateUltimateBodmasMatrix(mode, queryIndex) {
-  const segment = Math.floor((queryIndex - 1) / 10); 
-  const tag = (segment <= 1) ? "Mind Calculation only" : "Pen is allowed";
-
-  for (let cycle = 0; cycle < 100; cycle++) {
-    try {
-      let expr = "", answer = 0;
-
-      if (mode === 'integer') {
-        if (segment === 0) { // TIER 1: Warm-up Complex (1-10) -> Basic Exponents, Interleaved Div/Mult
-          const choose = rand(1, 3);
-          if (choose === 1) { // Bracket in exponent pattern
-            const expBase = rand(2, 3);
-            const expAdd = rand(1, 2);
-            const mult = rand(2, 5);
-            const sub = rand(5, 20);
-            expr = `${expBase}^(${expAdd} + 1) × ${mult} − ${sub} + ${rand(2, 10)}`;
-            answer = Math.pow(expBase, expAdd + 1) * mult - sub + (expr.split('+').pop().trim() * 1);
-          } else if (choose === 2) { // Exponent of a bracket pattern
-            const baseAdd = rand(2, 4);
-            const exp = rand(2, 3);
-            const div = rand(2, 4);
-            const dividend = Math.pow(baseAdd, exp) * div;
-            expr = `${dividend} ÷ (${baseAdd - 1} + 1)^${exp} + ${rand(5, 15)}`;
-            answer = (dividend / Math.pow(baseAdd, exp)) + (expr.split('+').pop().trim() * 1);
-          } else { // Consecutive Division chains
-            const div3 = rand(2, 3);
-            const div2 = rand(2, 4);
-            const div1 = rand(2, 5);
-            const baseNum = div1 * div2 * div3 * rand(1, 3);
-            const mult = rand(2, 5);
-            expr = `${baseNum} ÷ ${div1} ÷ ${div2} × ${mult} − ${rand(1, 5)}`;
-            answer = ((baseNum / div1) / div2) * mult - (expr.split('−').pop().trim() * 1);
-          }
-        } 
-        else if (segment === 1) { // TIER 2: Medium Structures (11-20) -> Traps, Sign Alterations
-          const choose = rand(1, 2);
-          if (choose === 1) { // Bracket Result = 0 (Trap Pattern)
-            const expBase = rand(2, 5);
-            const exp = rand(2, 3);
-            const val = Math.pow(expBase, exp);
-            expr = `(${rand(10, 50)} + ${rand(5, 20)}) × (${val} − ${expBase}^${exp}) + ${rand(15, 100)}`;
-            answer = 0 + (expr.split('+').pop().trim() * 1);
-          } else { // Negative Intermediate states
-            const start = rand(10, 30);
-            const sub = rand(40, 80);
-            const add = rand(60, 100);
-            expr = `${start} − ${sub} + ${add} ÷ ${rand(2, 5)} × 2`;
-            // Force strict tracking evaluation checking logic safely
-            const divPart = (add / expr.split('÷').pop().split('×')[0].trim());
-            answer = start - sub + (divPart * 2);
-          }
-        }
-        else if (segment === 2) { // TIER 3: Medium-Hard Matrix (21-30) -> Interleaved operations chains
-          const base = rand(2, 5);
-          const exp = rand(2, 3);
-          const chainDiv = rand(2, 4);
-          const mult = rand(3, 6);
-          const stepVal = Math.pow(base, exp) * mult;
-          
-          expr = `${stepVal} ÷ ${chainDiv} × 2 − (${Math.pow(base, exp)} − ${rand(2, 5)}) + ${rand(10, 40)}`;
-          answer = (stepVal / chainDiv) * 2 - (Math.pow(base, exp) - (expr.split('−')[1].split('+')[0].replace('(','').replace(')','').trim() * 1)) + (expr.split('+').pop().trim() * 1);
-        }
-        else if (segment === 3) { // TIER 4: Hard Multi-Bracket Matrices (31-45) -> Multi-layered nests
-          const b1 = rand(2, 4);
-          const b2 = rand(2, 3);
-          const innerVal = b1 + b2;
-          const mult1 = rand(2, 4);
-          const sub = rand(5, 15);
-          
-          expr = `[(${rand(4, 10)} + ${rand(2, 8)}) × ${mult1} − (${innerVal}^2 − ${sub})] \div ${rand(2, 5)} + ${rand(10, 50)}`;
-          // Direct parsing evaluation logic emulation matching math tree bounds
-          const side1 = (expr.split('(')[1].split(')')[0].split('+')[0].trim()*1 + expr.split('(')[1].split(')')[0].split('+')[1].trim()*1) * mult1;
-          const side2 = Math.pow(innerVal, 2) - sub;
-          const divNum = expr.split('\div')[1].split('+')[0].trim() * 1;
-          answer = ((side1 - side2) / divNum) + (expr.split('+').pop().trim() * 1);
-        }
-        else { // TIER 5: Grand Finale Style Nests (46-50) -> Complete 3-tier bracket arrays ({ [ ( ) ] })
-          const base = rand(2, 3);
-          const exp = rand(2, 3);
-          const scalar = rand(2, 4);
-          const div = rand(2, 3);
-          
-          expr = `${scalar} × \{ [(${Math.pow(base, exp)} − ${rand(2, 4)}) × ${rand(2, 5)} + ${rand(4, 12)}] ÷ ${div} + ${rand(5, 15)} \} − ${rand(5, 25)}`;
-          const innerMost = Math.pow(base, exp) - expr.split('(')[1].split('−')[1].split(')')[0].trim()*1;
-          const bracket2 = innerMost * expr.split(') × ')[1].split(' +')[0].trim()*1 + expr.split('+ ')[1].split(']')[0].trim()*1;
-          const braces = (bracket2 / div) + expr.split('+ ')[2].split(' \}')[0].trim()*1;
-          answer = scalar * braces - (expr.split('− ').pop().trim() * 1);
-        }
-      } 
-      else { // DECIMAL TARGETED LOGIC ARRAYS
-        if (segment <= 1) { // Light decimals sequence mix
-          const start = randFloat(1.5, 4.5, 1);
-          const mult = randFloat(2.0, 4.0, 1);
-          expr = `(${start} + 0.5) × ${mult} − ${randFloat(0.5, 2.5, 1)}`;
-          answer = (start + 0.5) * mult - (expr.split('− ').pop().trim() * 1);
-        } 
-        else if (segment <= 3) { // Advanced Decimals with bracket-embedded components
-          const base = randFloat(1.2, 2.2, 1);
-          expr = `(${base} + 0.8)^2 ÷ 0.5 + ${randFloat(4.5, 10.5, 1)} − ${randFloat(1.0, 3.0, 1)}`;
-          answer = Math.pow(base + 0.8, 2) / 0.5 + (expr.split('+ ').pop().split(' −')[0].trim() * 1) - (expr.split('− ').pop().trim() * 1);
-        }
-        else { // Maximum Heavy decimal multi-bracket nested equations
-          const baseDec = randFloat(0.5, 1.5, 1);
-          expr = `[(${baseDec} + 2.5) × 2.5 − 0.5] ÷ 0.2 + ${randFloat(10, 20)}`;
-          answer = (((baseDec + 2.5) * 2.5) - 0.5) / 0.2 + (expr.split('+ ').pop().trim() * 1);
-        }
-      }
-
-      answer = roundTo(answer, 3);
-      if (!isNaN(answer) && isFinite(answer)) {
-        return { expr, answer, tag };
-      }
-    } catch (err) { continue; }
-  }
-  return { expr: "(12 ÷ 3) + 2^3 × 2 − 4 + 5", answer: 21, tag: "Mind Calculation only" };
-}
-
 function generateQuestion(subjectId, level, mode = 'integer') {
   if (mode === 'decimal') return generateDecimalQuestion(subjectId, level);
   return generateIntegerQuestion(subjectId, level);
@@ -704,7 +573,6 @@ function triggerFullScreenFaultReview(expression, correctAnswer, onReviewComplet
 }
 
 function getAdaptiveTimeLimit(subjectId, level, mode) {
-  if (subjectId === 'ultimate_bodmas') return 0; 
   const base = {
     addition:       [6, 8, 10, 14, 18, 25],
     subtraction:    [6, 8, 10, 14, 18, 25],
@@ -718,8 +586,7 @@ function getAdaptiveTimeLimit(subjectId, level, mode) {
   return mode === 'decimal' ? Math.round(t * 1.5) : t;
 }
 
-function fetchQuestionsPerSession(subjectId, level) {
-  if (subjectId === 'ultimate_bodmas') return 50; 
+function fetchQuestionsPerSession(level) {
   if (level <= 2)  return 6;
   if (level <= 6)  return 8;
   if (level <= 15) return 10;
@@ -773,12 +640,14 @@ function renderDashboardCore() {
     clearedTotal += state.subjects[s.id].decimal.clearedLevels.length;
   });
 
+  // Calculate Avg Points safely even if session arrays are not yet locally initialized inside the browser instance
   let computedAvgPointsPerQ = state.averagePointsPerQuestion || 0;
   if (computedAvgPointsPerQ === 0 && totalQ > 0 && state.totalPoints > 0) {
     computedAvgPointsPerQ = state.totalPoints / totalQ;
-    state.averagePointsPerQuestion = computedAvgPointsPerQ; 
+    state.averagePointsPerQuestion = computedAvgPointsPerQ; // Mirror state repair data mapping protocols
   }
 
+  // Structural metric display elements binding
   document.getElementById('statTotalQ').textContent       = totalQ;
   document.getElementById('statAccuracy').textContent     = totalQ > 0 ? `${acc}%` : '—';
   document.getElementById('statBestStreak').textContent   = state.bestStreak || 0;
@@ -786,6 +655,7 @@ function renderDashboardCore() {
   document.getElementById('statTime').textContent         = parseFormattedDuration(state.totalTime || 0);
   document.getElementById('statDayStreak').textContent    = state.currentDayStreak || 0;
 
+  // Adaptive Scoring Metric Layout Assignments
   document.getElementById('statOverallPoints').textContent     = (state.totalPoints || 0).toFixed(2);
   document.getElementById('statNormalPoints').textContent      = (state.normalModePoints || 0).toFixed(2);
   document.getElementById('statMixedPoints').textContent       = (state.mixedModePoints || 0).toFixed(2);
@@ -809,20 +679,6 @@ function renderDashboardCore() {
         <div class="subject-progress-bar" style="background:rgba(84,122,165,0.2)"><div class="subject-progress-fill" style="width:100%; background:linear-gradient(90deg, var(--accent-core), var(--green-light))"></div></div>
       `;
       card.addEventListener('click', () => { if (!currentUser) { toggleAuthenticationState(); return; } bootMixedInfiniteSession(); });
-    } else if (s.id === 'ultimate_bodmas') {
-      const intData = state.subjects[s.id].integer;
-      const decData = state.subjects[s.id].decimal;
-      const totalMarathonsCleared = intData.clearedLevels.length + decData.clearedLevels.length;
-      
-      card.className = 'subject-card ultimate-bodmas-card';
-      card.innerHTML = `
-        <span class="subject-icon">${s.icon}</span>
-        <span class="subject-level-badge critical-badge-flavor">Marathon</span>
-        <div class="subject-name">${s.name}</div>
-        <div class="subject-meta">50 Operators Matrix Workspace<br><span style="color:var(--red-light)">No Time limit · 100% Precision Guard</span></div>
-        <div class="subject-progress-bar" style="background:rgba(158,79,79,0.1)"><div class="subject-progress-fill" style="width:${totalMarathonsCleared > 0 ? 100 : 0}%; background:var(--red-light)"></div></div>
-      `;
-      card.addEventListener('click', () => { if (!currentUser) { toggleAuthenticationState(); return; } showScreen('practice'); executeSubjectProfiling(s.id); });
     } else {
       const intData = state.subjects[s.id].integer;
       const decData = state.subjects[s.id].decimal;
@@ -855,6 +711,7 @@ async function renderTodaySummary() {
   let todayRecs = [];
   const todayStr = getTodayKey();
 
+  // Layer 1: Attempt tracking acquisition via local high-precision IndexedDB
   if (idbDb) {
     try {
       const allRecs = await idbGetAllRecords();
@@ -863,27 +720,30 @@ async function renderTodaySummary() {
         return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}` === todayStr;
       });
     } catch (e) {
-      console.warn("IndexedDB read friction encountered:", e);
+      console.warn("IndexedDB read friction encountered, executing fallback engine initialization:", e);
     }
   }
 
+  // Layer 2: Cloud Recovery Fallback Pipeline (Triggered if local database state array is clear)
   if (todayRecs.length === 0 && state.history && state.history.length > 0) {
     todayRecs = state.history.filter(h => {
       const d = new Date(h.date || h.timestamp);
       return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}` === todayStr;
     }).map(h => ({
-      correct: h.perfect || h.accuracy === 100 ? h.total : h.correct, 
+      correct: h.perfect || h.accuracy === 100 ? h.total : h.correct, // Normalize parameter schemas
       total: h.total,
       earnedPoints: h.pointsEarned || 0,
-      timeTaken: h.elapsed ? (h.elapsed / 1000) / h.total : 0 
+      timeTaken: h.elapsed ? (h.elapsed / 1000) / h.total : 0 // Extrapolate speed metrics
     }));
   }
 
+  // Calculate Aggregated Matrix Coordinates
   const totalQ = todayRecs.reduce((acc, r) => acc + (r.total || 1), 0);
   const totalCorrect = todayRecs.reduce((acc, r) => acc + (r.correct !== undefined ? (r.correct === true ? 1 : (r.correct === false ? 0 : r.correct)) : 0), 0);
   
   const acc = totalQ > 0 ? Math.round((totalCorrect / totalQ) * 100) + '%' : '—';
   
+  // Calculate average operational speed loop coordinates
   let avgTime = '—';
   if (idbDb && todayRecs.length > 0 && todayRecs.some(r => r.timeTaken && !r.total)) {
     const times = todayRecs.map(r => r.timeTaken).filter(t => t > 0);
@@ -895,6 +755,7 @@ async function renderTodaySummary() {
 
   const earnedToday = todayRecs.reduce((a, r) => a + (r.earnedPoints || 0), 0);
 
+  // Update DOM Workspace Node Interface Elements
   document.getElementById('todayQ').textContent       = totalQ;
   document.getElementById('todayAcc').textContent     = acc;
   document.getElementById('todaySpeed').textContent   = avgTime;
@@ -955,19 +816,6 @@ function initializePracticeRoutingView() {
         <div class="subject-progress-bar" style="background:rgba(84,122,165,0.2)"><div class="subject-progress-fill" style="width:100%; background:linear-gradient(90deg, var(--accent-core), var(--green-light))"></div></div>
       `;
       card.addEventListener('click', () => bootMixedInfiniteSession());
-    } else if (s.id === 'ultimate_bodmas') {
-      const intData = state.subjects[s.id].integer;
-      const decData = state.subjects[s.id].decimal;
-      const cleared = intData.clearedLevels.length + decData.clearedLevels.length;
-      card.className = 'subject-card ultimate-bodmas-card';
-      card.innerHTML = `
-        <span class="subject-icon">${s.icon}</span>
-        <span class="subject-level-badge critical-badge-flavor">Marathon</span>
-        <div class="subject-name">${s.name}</div>
-        <div class="subject-meta">Continuous full operator equations. No timer logic applied.</div>
-        <div class="subject-progress-bar" style="background:rgba(158,79,79,0.1)"><div class="subject-progress-fill" style="width:${cleared > 0 ? 100 : 0}%"></div></div>
-      `;
-      card.addEventListener('click', () => executeSubjectProfiling(s.id));
     } else {
       const intData = state.subjects[s.id].integer;
       const decData = state.subjects[s.id].decimal;
@@ -1011,52 +859,21 @@ function executeSubjectProfiling(subjectId) {
   document.getElementById('levelSelectMsg').classList.add('hidden');
   document.getElementById('modeSelectTitle').textContent = profile.name;
 
-  if (subjectId === 'ultimate_bodmas') {
-    document.getElementById('modeBadgeInteger').textContent = `${intData.clearedLevels.includes(1) ? 'Marathon Cleared' : 'Incomplete'}`;
-    document.getElementById('modeBadgeDecimal').textContent = `${decData.clearedLevels.includes(1) ? 'Marathon Cleared' : 'Incomplete'}`;
-  } else {
-    document.getElementById('modeBadgeInteger').textContent = `Level ${intData.level} · ${intData.clearedLevels.length} cleared`;
-    document.getElementById('modeBadgeDecimal').textContent = `Level ${decData.level} · ${decData.clearedLevels.length} cleared`;
-  }
+  document.getElementById('modeBadgeInteger').textContent = `Level ${intData.level} · ${intData.clearedLevels.length} cleared`;
+  document.getElementById('modeBadgeDecimal').textContent = `Level ${decData.level} · ${decData.clearedLevels.length} cleared`;
 }
 
 function selectMode(mode) {
   practiceMode = mode;
   const profile = SUBJECTS.find(x => x.id === practiceSubject);
+  const modeData = state.subjects[practiceSubject][mode];
 
   document.getElementById('modeSelectMsg').classList.add('hidden');
   document.getElementById('levelSelectMsg').classList.remove('hidden');
   document.getElementById('levelSelectTitle').textContent = `${profile.name} · ${mode === 'decimal' ? 'Decimal' : 'Integer'}`;
-  
-  if (practiceSubject === 'ultimate_bodmas') {
-    document.getElementById('levelSelectSub').textContent = "50-Question complete arithmetic sequencing map initialized. No timer limits apply. 100% precision required.";
-    buildUltimateBodmasSelector(practiceSubject, mode);
-  } else {
-    const modeData = state.subjects[practiceSubject][mode];
-    document.getElementById('levelSelectSub').textContent = `Active level path: ${modeData.level}. 100% execution accuracy profiles required for core logic acceleration.`;
-    buildLevelSelectionRows(practiceSubject, mode);
-  }
-}
+  document.getElementById('levelSelectSub').textContent = `Active level path: ${modeData.level}. 100% execution accuracy profiles required for core logic acceleration.`;
 
-function buildUltimateBodmasSelector(subjectId, mode) {
-  const container = document.getElementById('levelSelector');
-  container.innerHTML = '';
-  const modeData = state.subjects[subjectId][mode];
-  const cleared = modeData.clearedLevels.includes(1);
-
-  const row = document.createElement('div');
-  row.className = `level-row current`;
-  row.innerHTML = `
-    <div class="level-num">Marathon Core</div>
-    <div class="level-desc" style="color:var(--white)">
-      50 Structured questions containing Brackets, Exponents, Division, Multiplication, Addition, Subtraction.
-    </div>
-    <div class="level-status ${cleared ? 'cleared' : 'current'}">
-      ${cleared ? 'Fully Mastered' : 'Active Channel'}
-    </div>
-  `;
-  row.addEventListener('click', () => window.bootExecutionSession(subjectId, mode, 1));
-  container.appendChild(row);
+  buildLevelSelectionRows(practiceSubject, mode);
 }
 
 function buildLevelSelectionRows(subjectId, mode) {
@@ -1092,16 +909,9 @@ function buildLevelSelectionRows(subjectId, mode) {
 // ============================================================
 function bootExecutionSession(subjectId, mode, level) {
   const discipline = SUBJECTS.find(x => x.id === subjectId);
-  const total = fetchQuestionsPerSession(subjectId, level);
+  const total = fetchQuestionsPerSession(level);
   const questions = [];
-  
-  for (let i = 0; i < total; i++) {
-    if (subjectId === 'ultimate_bodmas') {
-      questions.push(generateUltimateBodmasMatrix(mode, i + 1));
-    } else {
-      questions.push(generateQuestion(subjectId, level, mode));
-    }
-  }
+  for (let i = 0; i < total; i++) questions.push(generateQuestion(subjectId, level, mode));
 
   session = {
     subject: subjectId, subjectName: discipline.name, mode, level,
@@ -1120,19 +930,14 @@ function bootExecutionSession(subjectId, mode, level) {
 
   document.getElementById('metaSubject').textContent = discipline.name;
   document.getElementById('metaMode').textContent    = mode === 'decimal' ? 'Decimal' : 'Integer';
-  document.getElementById('metaLevel').textContent   = (subjectId === 'ultimate_bodmas') ? 'Marathon' : level;
+  document.getElementById('metaLevel').textContent   = level;
   document.getElementById('metaStreak').textContent  = 0;
   document.getElementById('metaScore').textContent   = `0.00`;
 
-  if (subjectId === 'ultimate_bodmas') {
-    document.getElementById('timerRingContainer').style.display = 'none';
-  } else {
-    document.getElementById('timerRingContainer').style.display = 'block';
-    const arc = document.getElementById('timerArc');
-    if (arc) {
-      const circ = 2 * Math.PI * 48;
-      arc.style.strokeDasharray = circ; arc.style.strokeDashoffset = 0;
-    }
+  const arc = document.getElementById('timerArc');
+  if (arc) {
+    const circ = 2 * Math.PI * 48;
+    arc.style.strokeDasharray = circ; arc.style.strokeDashoffset = 0;
   }
   executeDisplayLoop();
 }
@@ -1152,7 +957,6 @@ function bootMixedInfiniteSession() {
   document.getElementById('sessionProgress').classList.add('hidden');
   document.getElementById('questionView').classList.add('active');
   document.getElementById('mixedExitBtn').classList.remove('hidden');
-  document.getElementById('timerRingContainer').style.display = 'block';
 
   document.getElementById('metaSubject').textContent = 'Mixed';
   document.getElementById('metaMode').textContent    = 'Infinite';
@@ -1170,7 +974,6 @@ function executeMixedQuestionLoop() {
 
   document.getElementById('questionNum').textContent  = `Mixed Operational Node — Index ${session.current + 1}`;
   document.getElementById('questionExpr').textContent = nextQ.expr;
-  document.getElementById('questionTag').style.display = 'none';
 
   const inp = document.getElementById('answerInput');
   inp.value = ''; inp.className = 'answer-input'; inp.disabled = false;
@@ -1191,19 +994,6 @@ function executeDisplayLoop() {
   document.getElementById('questionNum').textContent  = `Operational Unit ${session.current + 1} of ${total}`;
   document.getElementById('questionExpr').textContent = q.expr;
 
-  const tagEl = document.getElementById('questionTag');
-  if (session.subject === 'ultimate_bodmas' && q.tag) {
-    tagEl.textContent = q.tag;
-    tagEl.style.display = 'inline-block';
-    if (q.tag === 'Pen is allowed') {
-      tagEl.className = "question-tag tag-hard";
-    } else {
-      tagEl.className = "question-tag tag-easy";
-    }
-  } else {
-    tagEl.style.display = 'none';
-  }
-
   const inp = document.getElementById('answerInput');
   inp.value = ''; inp.className = 'answer-input'; inp.disabled = false;
 
@@ -1214,10 +1004,7 @@ function executeDisplayLoop() {
 
   inp.focus();
   session.questionStart = Date.now();
-  
-  if (session.subject !== 'ultimate_bodmas') {
-    engageTimerSubsystem();
-  }
+  engageTimerSubsystem();
 }
 
 function engageTimerSubsystem() {
@@ -1263,17 +1050,29 @@ function processTimeoutFault() {
   session.times.push(dt);
   session.streak = 0;
 
+  // Process system tracking objects update cascades globally
   state.maxPossiblePoints += scoreMetrics.maxPoints;
   recomputeLifetimeAverages();
   refreshLiveSessionMetaChips();
   
-  triggerFullScreenFaultReview(q.expr, q.answer, () => {
-    if (session.subject === 'ultimate_bodmas') {
-      terminateProcessingSession(); 
-    } else {
+  if (session.isMixed) {
+    session.mixedQuestionsTrack.push({
+      discipline: "mixed", actualDiscipline: q.actualDiscipline, actualMode: q.actualMode, actualLevel: q.actualLevel,
+      question: q.expr, answer: q.answer, correct: false, timeTaken: dt / 1000, timestamp: Date.now(),
+      maxPoints: scoreMetrics.maxPoints, earnedPoints: 0, efficiency: 0, timeLimit: session.maxTime
+    });
+    session.totalSolved++;
+    
+    // Launch dynamic screen fault review pipeline before continuing
+    triggerFullScreenFaultReview(q.expr, q.answer, () => {
+      advanceMixedQueue();
+    });
+  } else {
+    // Launch dynamic screen fault review pipeline before continuing
+    triggerFullScreenFaultReview(q.expr, q.answer, () => {
       advanceSessionQueue();
-    }
-  });
+    });
+  }
 }
 
 function submitAnswer() {
@@ -1285,9 +1084,7 @@ function submitAnswer() {
   const q = session.questions[session.current];
   const dt = Date.now() - session.questionStart;
 
-  if (session.subject !== 'ultimate_bodmas') {
-    clearInterval(session.timerInterval);
-  }
+  clearInterval(session.timerInterval);
   const correct = isAnswerCorrect(userVal, q.answer, session.isMixed ? q.actualMode : session.mode);
 
   inp.disabled = true;
@@ -1297,6 +1094,7 @@ function submitAnswer() {
   session.sessionEarnedPoints += scoreMetrics.earnedPoints;
   session.sessionPossiblePoints += scoreMetrics.maxPoints;
 
+  // State global mutators matching precision allocations
   state.totalPoints += scoreMetrics.earnedPoints;
   state.maxPossiblePoints += scoreMetrics.maxPoints;
   if (session.isMixed) {
@@ -1347,11 +1145,7 @@ function submitAnswer() {
       setTimeout(advanceSessionQueue, 1000);
     } else {
       triggerFullScreenFaultReview(q.expr, q.answer, () => {
-        if (session.subject === 'ultimate_bodmas') {
-          terminateProcessingSession();
-        } else {
-          advanceSessionQueue();
-        }
+        advanceSessionQueue();
       });
     }
   }
@@ -1390,9 +1184,7 @@ function refreshLiveSessionMetaChips() {
 // SYSTEM CLOSURES & DATA PIPELINES
 // ============================================================
 async function terminateProcessingSession() {
-  if (session.subject !== 'ultimate_bodmas') {
-    clearInterval(session.timerInterval);
-  }
+  clearInterval(session.timerInterval);
 
   const total    = session.questions.length;
   const correct  = session.answers.filter(x => x.statusCorrect).length;
@@ -1410,6 +1202,7 @@ async function terminateProcessingSession() {
   modeData.totalTime     += elapsed;
   if (session.streak > modeData.bestStreak) modeData.bestStreak = session.streak;
 
+  // Level thresholds configuration checks
   if (perfect) {
     if (!modeData.clearedLevels.includes(session.level)) modeData.clearedLevels.push(session.level);
     if (session.level === modeData.level) modeData.level = session.level + 1;
@@ -1432,7 +1225,6 @@ async function terminateProcessingSession() {
   if (idbDb) {
     for (let i = 0; i < session.questions.length; i++) {
       const ans = session.answers[i];
-      if (!ans) continue;
       await idbSaveRecord({
         timestamp:  session.startTime + (session.times[i] || 0),
         discipline: session.subjectName, section: session.mode, level: session.level,
@@ -1523,15 +1315,9 @@ function displayTerminalOverlay(isPass, correct, total, accuracy, meanTime, peak
   heading.textContent = isPass ? 'Mastery Achieved.' : 'Precision Threshold Fault.';
   heading.className   = `result-heading ${isPass ? 'success' : 'failure'}`;
 
-  if (session.subject === 'ultimate_bodmas') {
-    document.getElementById('resultSub').textContent = isPass
-      ? `Phenomenal computation! All 50 structured Ultimate BODMAS operators completed with perfect accuracy.`
-      : `Failed to clear Marathon matrix. Logged: ${correct} / ${total}. 100% precision execution required to qualify.`;
-  } else {
-    document.getElementById('resultSub').textContent = isPass
-      ? `All ${correct} operational arrays synchronized. System score allocation +${session.sessionEarnedPoints.toFixed(2)} vectors.`
-      : `Compliance performance map index: ${correct} / ${total}. 100% precision execution required to scale next tier.`;
-  }
+  document.getElementById('resultSub').textContent = isPass
+    ? `All ${correct} operational arrays synchronized. System score allocation +${session.sessionEarnedPoints.toFixed(2)} vectors.`
+    : `Compliance performance map index: ${correct} / ${total}. 100% precision execution required to scale next tier.`;
 
   document.getElementById('resAcc').textContent     = `${accuracy}%`;
   document.getElementById('resAvgTime').textContent = meanTime ? `${(meanTime / 1000).toFixed(1)}s` : '—';
@@ -1543,10 +1329,10 @@ function displayTerminalOverlay(isPass, correct, total, accuracy, meanTime, peak
 
   const primary = document.createElement('button');
   primary.className = 'btn-primary';
-  primary.textContent = isPass ? (session.subject === 'ultimate_bodmas' ? 'Run Again' : 'Advance Tier Run') : 'Re-verify Parameters';
+  primary.textContent = isPass ? 'Advance Tier Run' : 'Re-verify Parameters';
   primary.onclick = () => {
     overlay.className = 'result-overlay';
-    const nextLv = isPass ? (session.subject === 'ultimate_bodmas' ? 1 : state.subjects[session.subject][session.mode].level) : session.level;
+    const nextLv = isPass ? state.subjects[session.subject][session.mode].level : session.level;
     window.bootExecutionSession(session.subject, session.mode, nextLv);
   };
   btns.appendChild(primary);
@@ -1760,7 +1546,7 @@ function renderBreakdownCards(recs) {
       card.innerHTML = `
         <div class="breakdown-header">
           <div class="breakdown-name">${s.name}</div>
-          <div class="breakdown-level">${s.id === 'ultimate_bodmas' ? 'Marathon Core' : `Lv ${intData.level} / ${decData.level}`}</div>
+          <div class="breakdown-level">Lv ${intData.level} / ${decData.level}</div>
         </div>
         <div class="breakdown-mode-tabs">
           <button class="breakdown-mode-tab active" onclick="this.parentElement.querySelectorAll('.breakdown-mode-tab').forEach(b=>b.classList.remove('active'));this.classList.add('active');this.closest('.breakdown-card').querySelector('.mode-rows-integer').style.display='';this.closest('.breakdown-card').querySelector('.mode-rows-decimal').style.display='none';">Integer</button>

@@ -11,6 +11,7 @@
 </head>
 <body>
 
+  <!-- ===== AUTH GATEWAY ===== -->
   <div id="gatewayLockoutOverlay" class="gateway-lockout active">
     <div class="gateway-modal">
       <div class="gateway-logo">Calculus<span>.</span></div>
@@ -28,6 +29,7 @@
     </div>
   </div>
 
+  <!-- ===== NAV ===== -->
   <nav class="nav">
     <div class="nav-logo">Calculus<span>.</span></div>
     <ul class="nav-links">
@@ -38,145 +40,116 @@
     </ul>
   </nav>
 
+  <!-- ===== DASHBOARD SCREEN ===== -->
   <div id="screenDashboard" class="screen active">
     <div class="dashboard">
       <div class="dash-hero">
         <div class="dash-eyebrow" id="userGreeting">Mental Arithmetic Training</div>
         <h1 class="dash-title">Train like a<br /><em>human calculator.</em></h1>
-        <p class="dash-sub">Dynamic skill-based execution parameters. Point arrays scale by formula matching operation structural complexity against your precise answer latency vector.</p>
+        <p class="dash-sub">Five core disciplines. Integer &amp; decimal modes. Infinite operational levels. Your statistics and mastery progressions are actively tracked and updated in real-time.</p>
       </div>
 
-      <div class="section-title">Adaptive Score Dashboard Matrices</div>
-      <div class="points-system-panel">
-        <div class="point-main-card">
-          <div class="p-label">Overall Points Engine Score</div>
-          <div class="p-val" id="statOverallPoints">0.00</div>
-        </div>
-        <div class="point-sub-cards">
-          <div class="p-sub-card">
-            <span class="p-sub-lbl">Normal Practice Core</span>
-            <span class="p-sub-val" id="statNormalPoints">0.00</span>
-          </div>
-          <div class="p-sub-card">
-            <span class="p-sub-lbl">Mixed Loop Workspace</span>
-            <span class="p-sub-val" id="statMixedPoints">0.00</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="section-title">Engine Core Efficiency Profiles</div>
-      <div class="stats-bar adaptive-premium-bar">
-        <div class="stat-item">
-          <div class="stat-label">Points Per Question</div>
-          <div class="stat-value accent" id="statAvgPointsPerQ">0.00</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-label">Highest Operational Score</div>
-          <div class="stat-value" id="statHighestSingleQ">0.00</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-label">Lifetime Conversion Efficiency</div>
-          <div class="stat-value accent" id="statLifetimeEfficiency">0.0%</div>
-        </div>
-      </div>
-
-      <div class="section-title">Baseline Arithmetic Progress Metrics</div>
       <div class="stats-bar">
         <div class="stat-item">
-          <div class="stat-label">Operations Logged</div>
+          <div class="stat-label">Questions Solved</div>
           <div class="stat-value" id="statTotalQ">0</div>
         </div>
         <div class="stat-item">
-          <div class="stat-label">Precision Rating</div>
+          <div class="stat-label">Overall Accuracy</div>
           <div class="stat-value accent" id="statAccuracy">—</div>
         </div>
         <div class="stat-item">
-          <div class="stat-label">Best Solution Run</div>
+          <div class="stat-label">Best Streak</div>
           <div class="stat-value" id="statBestStreak">0</div>
         </div>
         <div class="stat-item">
-          <div class="stat-label">Tiers Mastered</div>
+          <div class="stat-label">Levels Cleared</div>
           <div class="stat-value" id="statLevels">0</div>
         </div>
         <div class="stat-item">
-          <div class="stat-label">Total Execution Time</div>
-          <div class="stat-value" id="statTime">0s</div>
+          <div class="stat-label">Study Time</div>
+          <div class="stat-value" id="statTime">0m</div>
         </div>
         <div class="stat-item">
-          <div class="stat-label">Consistency Chain</div>
+          <div class="stat-label">Day Streak</div>
           <div class="stat-value accent" id="statDayStreak">0</div>
         </div>
       </div>
 
+      <!-- Today summary -->
       <div class="today-bar" id="todayBar">
         <div class="today-item">
-          <div class="today-label">Today's Queue Vol</div>
+          <div class="today-label">Today's Questions</div>
           <div class="today-val" id="todayQ">0</div>
         </div>
         <div class="today-item">
-          <div class="today-label">Today's Precision</div>
+          <div class="today-label">Today's Accuracy</div>
           <div class="today-val" id="todayAcc">—</div>
         </div>
         <div class="today-item">
-          <div class="today-label">Mean Speed Vector</div>
+          <div class="today-label">Today's Avg Speed</div>
           <div class="today-val" id="todaySpeed">—</div>
         </div>
         <div class="today-item">
-          <div class="today-label">Points Earned Today</div>
-          <div class="today-val" id="todayPoints" style="color:var(--green-light)">0.00</div>
+          <div class="today-label">Sessions Today</div>
+          <div class="today-val" id="todaySessions">0</div>
         </div>
       </div>
 
-      <div class="section-title">Operational Sectors</div>
+      <div class="section-title">Disciplines</div>
       <div class="subjects-grid" id="subjectsGrid"></div>
 
-      <div class="section-title">Recent Matrix Execution Logs</div>
+      <div class="section-title">Recent Performance Logs</div>
       <div class="history-list" id="historyList"></div>
     </div>
   </div>
 
+  <!-- ===== PRACTICE SCREEN ===== -->
   <div id="screenPractice" class="screen">
     <div class="practice-screen">
 
       <div class="subject-select-view" id="subjectSelectView">
         <button class="back-btn" onclick="window.showScreen('dashboard')">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 12L6 8l4-4" /></svg>
-          Dashboard Hub
+          Dashboard
         </button>
 
+        <!-- Step 1: Choose discipline -->
         <div id="noSubjectMsg">
-          <h2 class="page-heading">Initialize an <em>operational core.</em></h2>
+          <h2 class="page-heading">Select an <em>operational core.</em></h2>
           <p class="page-subheading">Choose a baseline mathematical discipline to execute training loops.</p>
           <div class="subjects-grid" id="practiceSubjectsGrid"></div>
         </div>
 
+        <!-- Step 2: Choose Integer / Decimal -->
         <div id="modeSelectMsg" class="hidden">
           <button class="back-btn" onclick="window.backToSubjectSelect()" style="margin-bottom:1.5rem">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 12L6 8l4-4" /></svg>
-            Sectors
+            Disciplines
           </button>
           <h2 class="page-heading" id="modeSelectTitle">—</h2>
-          <p class="page-subheading">Select target number system matrices configuration parameters.</p>
+          <p class="page-subheading">Select a practice mode for this discipline.</p>
           <div class="mode-selector">
             <div class="mode-card" id="modeCardInteger" onclick="window.selectMode('integer')">
               <div class="mode-icon">ℤ</div>
-              <div class="mode-name">Integer Channels</div>
-              <div class="mode-desc">Whole number discrete elements arithmetic arrays. Classic rapid calculation loops.</div>
+              <div class="mode-name">Integer Mode</div>
+              <div class="mode-desc">Whole number arithmetic. Classic mental math drills across difficulty levels.</div>
               <div class="mode-badge" id="modeBadgeInteger">—</div>
             </div>
             <div class="mode-card" id="modeCardDecimal" onclick="window.selectMode('decimal')">
               <div class="mode-icon">𝜋</div>
-              <div class="mode-name">Decimal Pipelines</div>
-              <div class="mode-desc">Floating precision vectors workspace. Requires explicit floating matching logic formats.</div>
+              <div class="mode-name">Decimal Mode</div>
+              <div class="mode-desc">Decimal precision training. At least one operand or the answer will be decimal.</div>
               <div class="mode-badge" id="modeBadgeDecimal">—</div>
             </div>
           </div>
         </div>
 
+        <!-- Step 3: Choose level -->
         <div id="levelSelectMsg" class="hidden">
           <button class="back-btn" onclick="window.backToModeSelect()" style="margin-bottom:1.5rem">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 12L6 8l4-4" /></svg>
-            Mode Matrix
+            Mode Select
           </button>
           <h2 class="page-heading" id="levelSelectTitle">—</h2>
           <p class="page-subheading" id="levelSelectSub">—</p>
@@ -186,29 +159,29 @@
 
       <div class="session-meta hidden" id="sessionMeta">
         <div class="meta-chip">
-          <span class="meta-chip-label">Sector</span>
+          <span class="meta-chip-label">Subject</span>
           <span class="meta-chip-val" id="metaSubject">—</span>
         </div>
         <div class="meta-chip">
-          <span class="meta-chip-label">Engine Config</span>
+          <span class="meta-chip-label">Mode</span>
           <span class="meta-chip-val" id="metaMode">—</span>
         </div>
         <div class="meta-chip">
-          <span class="meta-chip-label">Tier Path</span>
+          <span class="meta-chip-label">Level</span>
           <span class="meta-chip-val" id="metaLevel">—</span>
         </div>
         <div class="meta-chip">
-          <span class="meta-chip-label">Streak Chain</span>
+          <span class="meta-chip-label">Streak</span>
           <span class="meta-chip-val" id="metaStreak">0</span>
         </div>
         <div class="meta-chip">
-          <span class="meta-chip-label">Points Yielded</span>
-          <span class="meta-chip-val" id="metaScore" style="color:var(--green-light)">0.00</span>
+          <span class="meta-chip-label">Score</span>
+          <span class="meta-chip-val" id="metaScore">0/0</span>
         </div>
       </div>
 
       <div class="question-view" id="questionView">
-        <div class="timer-ring-container" id="timerRingContainer">
+        <div class="timer-ring-container">
           <svg class="timer-svg" viewBox="0 0 110 110">
             <circle class="timer-track" cx="55" cy="55" r="48" />
             <circle class="timer-arc" id="timerArc" cx="55" cy="55" r="48" />
@@ -218,14 +191,12 @@
 
         <div class="question-card">
           <div class="question-qnum" id="questionNum">—</div>
-          <div><span class="question-tag" id="questionTag" style="display:none;">—</span></div>
           <div class="question-expr" id="questionExpr">—</div>
 
           <div class="answer-area">
             <input class="answer-input" type="text" id="answerInput" placeholder="?" autocomplete="off" inputmode="decimal" />
             <div class="feedback-msg" id="feedbackMsg"></div>
-            <button class="submit-btn" id="submitBtn" onclick="window.submitAnswer()">Verify Vector</button>
-            <button class="exit-mixed-btn hidden" id="mixedExitBtn" onclick="window.terminateMixedSession()">Halt Calculation Sequence</button>
+            <button class="submit-btn" id="submitBtn" onclick="window.submitAnswer()">Submit Evaluation</button>
           </div>
         </div>
       </div>
@@ -236,21 +207,24 @@
     </div>
   </div>
 
+  <!-- ===== ANALYTICS SCREEN ===== -->
   <div id="screenAnalytics" class="screen">
     <div class="analytics">
       <div class="dash-hero">
-        <div class="dash-eyebrow">Performance Metrics Analytics</div>
-        <h1 class="dash-title">Engine <em>analytics.</em></h1>
-        <p class="dash-sub">High precision performance profiles, point translation coefficients and complexity tracking models mapped locally.</p>
+        <div class="dash-eyebrow">Performance Analytics</div>
+        <h1 class="dash-title">Engine <em>metrics.</em></h1>
+        <p class="dash-sub">Precision index, response metrics, and processing velocity mapped parameters. One-year retention, stored locally.</p>
       </div>
 
+      <!-- Time range tabs -->
       <div class="analytics-tabs">
-        <button class="analytics-tab active" id="tabDaily"   onclick="window.switchAnalyticsTab('daily')">Daily Range</button>
-        <button class="analytics-tab"         id="tabWeekly"  onclick="window.switchAnalyticsTab('weekly')">Weekly Delta</button>
-        <button class="analytics-tab"         id="tabMonthly" onclick="window.switchAnalyticsTab('monthly')">Monthly Matrix</button>
-        <button class="analytics-tab"         id="tabAllTime" onclick="window.switchAnalyticsTab('alltime')">All History</button>
+        <button class="analytics-tab active" id="tabDaily"   onclick="window.switchAnalyticsTab('daily')">Daily</button>
+        <button class="analytics-tab"         id="tabWeekly"  onclick="window.switchAnalyticsTab('weekly')">Weekly</button>
+        <button class="analytics-tab"         id="tabMonthly" onclick="window.switchAnalyticsTab('monthly')">Monthly</button>
+        <button class="analytics-tab"         id="tabAllTime" onclick="window.switchAnalyticsTab('alltime')">All Time</button>
       </div>
 
+      <!-- Date / Week / Month selectors -->
       <div class="date-selector-row" id="dateSelectorRow">
         <button class="date-nav-btn" onclick="window.shiftAnalyticsPeriod(-1)">&#8592;</button>
         <div class="date-label" id="dateSelectorLabel">—</div>
@@ -260,40 +234,44 @@
 
       <div class="analytics-grid" id="analyticsTopGrid"></div>
 
+      <!-- Insights -->
       <div id="insightsPanel" class="insights-panel"></div>
 
-      <div class="section-title">Accuracy Execution Trend Mapping</div>
+      <!-- Trend chart -->
+      <div class="section-title">Accuracy &amp; Volume Trend</div>
       <div class="perf-chart-wrap">
-        <div class="perf-chart-title" id="trendChartTitle">Last 20 Runs — Precision Trace %</div>
+        <div class="perf-chart-title" id="trendChartTitle">Last 20 Sessions — Accuracy %</div>
         <div class="perf-chart">
           <canvas class="chart-canvas" id="perfChart"></canvas>
         </div>
       </div>
 
-      <div class="section-title">Discipline Efficiency Coordinates</div>
+      <div class="section-title">Discipline Matrices</div>
       <div class="subject-breakdown" id="subjectBreakdown"></div>
 
+      <!-- Export buttons -->
       <div class="export-row">
-        <div class="section-title" style="margin-bottom:0">Data Extraction Protocols</div>
+        <div class="section-title" style="margin-bottom:0">Export Data</div>
         <div class="export-btns">
           <button class="export-btn" onclick="window.exportData('csv')">Export CSV</button>
-          <button class="export-btn" onclick="window.exportData('json')">Export JSON Matrix</button>
+          <button class="export-btn" onclick="window.exportData('json')">Export JSON</button>
         </div>
       </div>
     </div>
   </div>
 
+  <!-- ===== RESULT OVERLAY ===== -->
   <div class="result-overlay" id="resultOverlay">
     <div class="result-status" id="resultStatus">—</div>
     <h2 class="result-heading" id="resultHeading">—</h2>
     <p class="result-sub" id="resultSub">—</p>
     <div class="result-stats">
       <div class="result-stat">
-        <div class="result-stat-label">Precision Index</div>
+        <div class="result-stat-label">Accuracy Index</div>
         <div class="result-stat-val" id="resAcc">—</div>
       </div>
       <div class="result-stat">
-        <div class="result-stat-label">Mean Duration</div>
+        <div class="result-stat-label">Mean Speed</div>
         <div class="result-stat-val" id="resAvgTime">—</div>
       </div>
       <div class="result-stat">
@@ -301,19 +279,11 @@
         <div class="result-stat-val" id="resBest">—</div>
       </div>
       <div class="result-stat">
-        <div class="result-stat-label">Terminal Chain</div>
+        <div class="result-stat-label">Terminal Streak</div>
         <div class="result-stat-val" id="resStreak">—</div>
       </div>
     </div>
     <div class="result-btns" id="resultBtns"></div>
-  </div>
-
-  <div class="fault-review-overlay" id="faultReviewOverlay">
-    <div class="fault-review-container">
-      <div class="fault-review-expr" id="faultReviewExpr">—</div>
-      <div class="fault-review-divider"></div>
-      <div class="fault-review-answer" id="faultReviewAnswer">—</div>
-    </div>
   </div>
 
   <script type="module" src="app.js"></script>
