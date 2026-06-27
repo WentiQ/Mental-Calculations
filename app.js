@@ -63,7 +63,8 @@ const SUBJECTS = [
   { id: 'lcm_hcf_prime_powers', name: 'LCM/HCF Prime Powers',       icon: 'p^n', symbol: '' },
   { id: 'factorization_intro',  name: 'Factorization Intro',        icon: '∣', symbol: '' },
   { id: 'exponents_powers_1',   name: 'Exponents & Powers Part 1',  icon: 'a^n', symbol: '' },
-  { id: 'laws_of_exponents_2',  name: 'Laws Of Exponents Part 2',   icon: 'a^m', symbol: '' }
+  { id: 'laws_of_exponents_2',  name: 'Laws Of Exponents Part 2',   icon: 'a^m', symbol: '' },
+  { id: 'percentages',          name: 'Percentages',                icon: '%', symbol: '' }
 ];
 
 const MASTERY_DISCIPLINES = new Set([
@@ -78,7 +79,8 @@ const MASTERY_DISCIPLINES = new Set([
   'lcm_hcf_prime_powers',
   'factorization_intro',
   'exponents_powers_1',
-  'laws_of_exponents_2'
+  'laws_of_exponents_2',
+  'percentages'
 ]);
 
 function isMasteryDiscipline(subjectId) {
@@ -668,6 +670,53 @@ function generateMasteryTopicQuestion(subjectId, mode, queryIndex, templateOverr
         const b = rand(2, 6);
         expr = `(${a} × ${b})^${n}`;
         answer = Math.pow(a, n) * Math.pow(b, n);
+      }
+      break;
+    }
+    case 'percentages': {
+      const pattern = segment % 6;
+      if (pattern === 0) {
+        // Percentage to decimal conversion
+        const p = randFrom([1, 2, 5, 6, 10, 12, 15, 20, 25, 30, 45, 60, 75, 90]);
+        expr = `${p}% to decimal`;
+        answer = roundTo(p / 100, 3);
+      } else if (pattern === 1) {
+        // Fraction to percentage conversion
+        const den = randFrom([2, 3, 4, 5, 6, 8, 10, 12]);
+        const num = rand(1, den - 1);
+        expr = `${num}/${den} as percentage`;
+        answer = roundTo((num / den) * 100, 3);
+      } else if (pattern === 2) {
+        // Type 1: find part
+        const pct = randFrom([5, 10, 12, 15, 20, 25, 30, 40, 45, 50, 60, 75, 90]);
+        const total = randFrom([20, 25, 30, 34, 40, 50, 80, 100, 120, 200, 400, 600, 800]);
+        expr = `${pct}% of ${total}`;
+        answer = roundTo((pct / 100) * total, 3);
+      } else if (pattern === 3) {
+        // Type 2: find percentage
+        const total = randFrom([60, 80, 100, 120, 200, 300, 400, 500, 600, 800]);
+        const pct = randFrom([10, 15, 20, 25, 30, 40, 45, 50, 60, 75, 80, 90]);
+        const part = roundTo((pct / 100) * total, 3);
+        expr = `${part} is what percent of ${total}`;
+        answer = roundTo((part / total) * 100, 3);
+      } else if (pattern === 4) {
+        // Type 3: find total
+        const pct = randFrom([5, 10, 12, 15, 20, 25, 30, 40, 45, 50, 60, 75, 90]);
+        const total = randFrom([40, 60, 80, 100, 120, 150, 200, 300, 400, 600, 800]);
+        const part = roundTo((pct / 100) * total, 3);
+        expr = `If ${pct}% of a number is ${part}, find the number`;
+        answer = roundTo((part / pct) * 100, 3);
+      } else {
+        // Direct aptitude-style examples
+        const fixed = randFrom([
+          { p: 90, t: 200 },
+          { p: 10, t: 34 },
+          { p: 5, t: 800 },
+          { p: 45, t: 200 },
+          { p: 20, t: 200 }
+        ]);
+        expr = `${fixed.p}% of ${fixed.t}`;
+        answer = roundTo((fixed.p / 100) * fixed.t, 3);
       }
       break;
     }
