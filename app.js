@@ -52,8 +52,38 @@ const SUBJECTS = [
   { id: 'multiplication', name: 'Multiplication', icon: '×',  symbol: '×' },
   { id: 'division',       name: 'Division',       icon: '÷',  symbol: '÷' },
   { id: 'bodmas',         name: 'BODMAS',         icon: '( )', symbol: '' },
-  { id: 'ultimate_bodmas',name: 'Ultimate BODMAS',icon: '🔱', symbol: '' }
+  { id: 'ultimate_bodmas',name: 'Ultimate BODMAS',icon: '🔱', symbol: '' },
+  { id: 'fractions_intro',      name: 'Fractions Intro',            icon: '½', symbol: '' },
+  { id: 'types_of_fractions',   name: 'Types Of Fractions',         icon: '⅓', symbol: '' },
+  { id: 'fraction_add_sub',     name: 'Fraction Add/Sub',           icon: '⊕', symbol: '' },
+  { id: 'fraction_simplify',    name: 'Simplifying Fractions',      icon: '⇄', symbol: '' },
+  { id: 'fraction_mul_div',     name: 'Fraction Mul/Div',           icon: '⨯', symbol: '' },
+  { id: 'lcm_hcf_basics',       name: 'LCM & HCF Basics',           icon: '◇', symbol: '' },
+  { id: 'lcm_short_tricks',     name: 'LCM Short Tricks',           icon: '⚡', symbol: '' },
+  { id: 'lcm_hcf_prime_powers', name: 'LCM/HCF Prime Powers',       icon: 'p^n', symbol: '' },
+  { id: 'factorization_intro',  name: 'Factorization Intro',        icon: '∣', symbol: '' },
+  { id: 'exponents_powers_1',   name: 'Exponents & Powers Part 1',  icon: 'a^n', symbol: '' },
+  { id: 'laws_of_exponents_2',  name: 'Laws Of Exponents Part 2',   icon: 'a^m', symbol: '' }
 ];
+
+const MASTERY_DISCIPLINES = new Set([
+  'ultimate_bodmas',
+  'fractions_intro',
+  'types_of_fractions',
+  'fraction_add_sub',
+  'fraction_simplify',
+  'fraction_mul_div',
+  'lcm_hcf_basics',
+  'lcm_short_tricks',
+  'lcm_hcf_prime_powers',
+  'factorization_intro',
+  'exponents_powers_1',
+  'laws_of_exponents_2'
+]);
+
+function isMasteryDiscipline(subjectId) {
+  return MASTERY_DISCIPLINES.has(subjectId);
+}
 
 const ABSOLUTE_MAX_TIME = 50; 
 const REVIEW_SCREEN_DURATION_MS = 2500; 
@@ -377,6 +407,25 @@ function randFloat(min, max, decimals) {
   return roundTo(v, decimals);
 }
 
+function gcd(a, b) {
+  a = Math.abs(Math.trunc(a));
+  b = Math.abs(Math.trunc(b));
+  while (b !== 0) {
+    const t = b;
+    b = a % b;
+    a = t;
+  }
+  return a || 1;
+}
+
+function lcm(a, b) {
+  return Math.abs(a * b) / gcd(a, b);
+}
+
+function randFrom(values) {
+  return values[Math.floor(Math.random() * values.length)];
+}
+
 function ensureDecimal(q) {
   const hasDecimalOperand = q.expr.match(/\d+\.\d+/);
   const hasDecimalAnswer = !Number.isInteger(q.answer);
@@ -413,6 +462,11 @@ function generateIntegerQuestion(subjectId, level) {
       return generateBodmasInteger(level);
     case 'ultimate_bodmas':
       return generateUltimateBodmasMatrix('integer', level);
+    default:
+      if (isMasteryDiscipline(subjectId)) {
+        return generateMasteryTopicQuestion(subjectId, 'integer', level);
+      }
+      return { expr: `2 + 2`, answer: 4 };
   }
 }
 
@@ -446,7 +500,190 @@ function generateDecimalQuestion(subjectId, level) {
     case 'division':       return generateDecimalDivision(level);
     case 'bodmas':         return generateDecimalBodmas(level);
     case 'ultimate_bodmas':return generateUltimateBodmasMatrix('decimal', level);
+    default:
+      if (isMasteryDiscipline(subjectId)) {
+        return generateMasteryTopicQuestion(subjectId, 'decimal', level);
+      }
+      return { expr: `2.5 + 2.5`, answer: 5 };
   }
+}
+
+function generateMasteryTopicQuestion(subjectId, mode, queryIndex, templateOverrideId = null) {
+  if (subjectId === 'ultimate_bodmas') {
+    return generateUltimateBodmasMatrix(mode, queryIndex, templateOverrideId);
+  }
+
+  const totalForTag = fetchQuestionsPerSession(subjectId, 1);
+  const segment = templateOverrideId !== null
+    ? templateOverrideId
+    : Math.floor(((queryIndex || 1) - 1) / Math.max(1, Math.floor(totalForTag / 3)));
+  const tag = segment === 0 ? 'Mind Calculation only' : 'Pen is allowed';
+
+  let expr = '';
+  let answer = 0;
+  const integerFriendly = mode === 'integer';
+
+  switch (subjectId) {
+    case 'fractions_intro': {
+      if (integerFriendly) {
+        const den = randFrom([2, 3, 4, 5, 6, 8, 10]);
+        const n1 = rand(1, den - 1);
+        const n2 = rand(1, den - 1);
+        expr = `${n1}/${den} + ${n2}/${den} = ?`;
+        answer = roundTo((n1 + n2) / den, 3);
+      } else {
+        const den = randFrom([2, 4, 5, 8, 10]);
+        const n = rand(1, den - 1);
+        expr = `Decimal value of ${n}/${den}`;
+        answer = roundTo(n / den, 3);
+      }
+      break;
+    }
+    case 'types_of_fractions': {
+      const den = rand(2, 9);
+      const whole = rand(1, 6);
+      const num = rand(1, den - 1);
+      if (segment % 2 === 0) {
+        expr = `Convert ${whole} ${num}/${den} to improper fraction numerator`;
+        answer = whole * den + num;
+      } else {
+        const improper = whole * den + num;
+        expr = `Whole part of ${improper}/${den}`;
+        answer = Math.floor(improper / den);
+      }
+      break;
+    }
+    case 'fraction_add_sub': {
+      const d1 = randFrom([2, 3, 4, 5, 6, 8, 10]);
+      const d2 = randFrom([2, 3, 4, 5, 6, 8, 10]);
+      const n1 = rand(1, d1 - 1);
+      const n2 = rand(1, d2 - 1);
+      if (segment % 2 === 0) {
+        expr = `${n1}/${d1} + ${n2}/${d2}`;
+        answer = roundTo((n1 / d1) + (n2 / d2), 3);
+      } else {
+        const bigger = Math.max(n1 / d1, n2 / d2);
+        const smaller = Math.min(n1 / d1, n2 / d2);
+        expr = `${Math.max(n1, n2)}/${(bigger === n1 / d1) ? d1 : d2} - ${Math.min(n1, n2)}/${(smaller === n1 / d1) ? d1 : d2}`;
+        answer = roundTo(bigger - smaller, 3);
+      }
+      break;
+    }
+    case 'fraction_simplify': {
+      const a = rand(2, 12);
+      const b = rand(2, 12);
+      const scale = rand(2, 9);
+      const n = a * scale;
+      const d = b * scale;
+      const g = gcd(n, d);
+      const sn = n / g;
+      const sd = d / g;
+      expr = `Simplify ${n}/${d}: find (numerator + denominator)`;
+      answer = sn + sd;
+      break;
+    }
+    case 'fraction_mul_div': {
+      const n1 = rand(1, 9), d1 = rand(2, 10), n2 = rand(1, 9), d2 = rand(2, 10);
+      if (segment % 2 === 0) {
+        expr = `${n1}/${d1} × ${n2}/${d2}`;
+        answer = roundTo((n1 * n2) / (d1 * d2), 3);
+      } else {
+        expr = `${n1}/${d1} ÷ ${n2}/${d2}`;
+        answer = roundTo((n1 * d2) / (d1 * n2), 3);
+      }
+      break;
+    }
+    case 'lcm_hcf_basics': {
+      const a = rand(6, 36), b = rand(6, 36);
+      if (segment % 2 === 0) {
+        expr = `LCM(${a}, ${b})`;
+        answer = lcm(a, b);
+      } else {
+        expr = `HCF(${a}, ${b})`;
+        answer = gcd(a, b);
+      }
+      break;
+    }
+    case 'lcm_short_tricks': {
+      const a = randFrom([3, 4, 5, 6, 7, 8, 9, 10]);
+      const b = a * randFrom([2, 3, 4]);
+      const c = b * randFrom([1, 2]);
+      expr = `LCM(${a}, ${b}, ${c})`;
+      answer = lcm(lcm(a, b), c);
+      break;
+    }
+    case 'lcm_hcf_prime_powers': {
+      const p2a = rand(1, 4), p3a = rand(0, 3), p5a = rand(0, 2);
+      const p2b = rand(0, 3), p3b = rand(1, 4), p5b = rand(0, 2);
+      const A = Math.pow(2, p2a) * Math.pow(3, p3a) * Math.pow(5, p5a);
+      const B = Math.pow(2, p2b) * Math.pow(3, p3b) * Math.pow(5, p5b);
+      if (segment % 2 === 0) {
+        expr = `HCF(${A}, ${B})`;
+        answer = gcd(A, B);
+      } else {
+        expr = `LCM(${A}, ${B})`;
+        answer = lcm(A, B);
+      }
+      break;
+    }
+    case 'factorization_intro': {
+      const n = rand(12, 120);
+      let count = 0;
+      for (let i = 1; i <= n; i++) if (n % i === 0) count++;
+      expr = `How many factors does ${n} have?`;
+      answer = count;
+      break;
+    }
+    case 'exponents_powers_1': {
+      const a = rand(2, 9);
+      if (segment % 3 === 0) {
+        const m = rand(2, 5);
+        expr = `${a}^${m}`;
+        answer = Math.pow(a, m);
+      } else if (segment % 3 === 1) {
+        expr = `${a}^0`;
+        answer = 1;
+      } else {
+        const m = rand(1, 3);
+        expr = `1 / (${a}^${m})`;
+        answer = roundTo(1 / Math.pow(a, m), 3);
+      }
+      break;
+    }
+    case 'laws_of_exponents_2': {
+      const a = rand(2, 7);
+      const m = rand(2, 5);
+      const n = rand(1, 4);
+      const pattern = segment % 4;
+      if (pattern === 0) {
+        expr = `${a}^${m} × ${a}^${n}`;
+        answer = Math.pow(a, m + n);
+      } else if (pattern === 1) {
+        expr = `${a}^${m + n} ÷ ${a}^${n}`;
+        answer = Math.pow(a, m);
+      } else if (pattern === 2) {
+        expr = `(${a}^${m})^${n}`;
+        answer = Math.pow(a, m * n);
+      } else {
+        const b = rand(2, 6);
+        expr = `(${a} × ${b})^${n}`;
+        answer = Math.pow(a, n) * Math.pow(b, n);
+      }
+      break;
+    }
+    default: {
+      expr = `2 + 2`;
+      answer = 4;
+    }
+  }
+
+  return {
+    expr,
+    answer: roundTo(answer, 3),
+    tag,
+    templateId: segment,
+    templateGenerator: mode
+  };
 }
 
 function generateDecimalAddition(level) {
@@ -756,7 +993,7 @@ function triggerFullScreenFaultReview(expression, correctAnswer, onReviewComplet
 }
 
 function getAdaptiveTimeLimit(subjectId, level, mode) {
-  if (subjectId === 'ultimate_bodmas') return 0; 
+  if (isMasteryDiscipline(subjectId)) return 0;
   const base = {
     addition:       [6, 8, 10, 14, 18, 25],
     subtraction:    [6, 8, 10, 14, 18, 25],
@@ -771,7 +1008,8 @@ function getAdaptiveTimeLimit(subjectId, level, mode) {
 }
 
 function fetchQuestionsPerSession(subjectId, level) {
-  if (subjectId === 'ultimate_bodmas') return 50; 
+  if (subjectId === 'ultimate_bodmas') return 50;
+  if (isMasteryDiscipline(subjectId)) return 30;
   if (level <= 2)  return 6;
   if (level <= 6)  return 8;
   if (level <= 15) return 10;
@@ -792,7 +1030,7 @@ function parseFormattedDuration(ms) {
 // ============================================================
 function handleNavNavigation(screenId) {
   // If an Ultimate BODMAS session is running, intercept navigation and ask to save
-  if (session && session.subject === 'ultimate_bodmas' && session.questions.length > 0 && session.current < session.questions.length) {
+  if (session && isMasteryDiscipline(session.subject) && session.questions.length > 0 && session.current < session.questions.length) {
     pendingNavigationTarget = screenId;
     const navOverlay = document.getElementById('navigationSaveOverlay');
     if (navOverlay) navOverlay.classList.add('active');
@@ -848,7 +1086,7 @@ function showScreen(screenId) {
 
 // Window visibility exit hooks verification
 window.addEventListener('beforeunload', (e) => {
-  if (session && session.subject === 'ultimate_bodmas' && session.questions.length > 0 && session.current < session.questions.length) {
+  if (session && isMasteryDiscipline(session.subject) && session.questions.length > 0 && session.current < session.questions.length) {
     e.preventDefault();
     e.returnValue = 'An active Ultimate BODMAS configuration run is execution-locked. Leaving will drop local metrics array.';
     return e.returnValue;
@@ -904,7 +1142,7 @@ function renderDashboardCore() {
         <div class="subject-progress-bar" style="background:rgba(84,122,165,0.2)"><div class="subject-progress-fill" style="width:100%; background:linear-gradient(90deg, var(--accent-core), var(--green-light))"></div></div>
       `;
       card.addEventListener('click', () => { if (!currentUser) { toggleAuthenticationState(); return; } bootMixedInfiniteSession(); });
-    } else if (s.id === 'ultimate_bodmas') {
+    } else if (isMasteryDiscipline(s.id)) {
       const intData = state.subjects[s.id].integer;
       const decData = state.subjects[s.id].decimal;
       const totalMarathonsCleared = intData.clearedLevels.length + decData.clearedLevels.length;
@@ -914,7 +1152,7 @@ function renderDashboardCore() {
         <span class="subject-icon">${s.icon}</span>
         <span class="subject-level-badge critical-badge-flavor">Recursive</span>
         <div class="subject-name">${s.name}</div>
-        <div class="subject-meta">50 Operators Matrix Workspace<br><span style="color:var(--red-light)">Persistent Loops · 100% Precision Lock</span></div>
+        <div class="subject-meta">Mastery Matrix Workspace<br><span style="color:var(--red-light)">Persistent Loops · 100% Precision Lock</span></div>
         <div class="subject-progress-bar" style="background:rgba(158,79,79,0.1)"><div class="subject-progress-fill" style="width:${totalMarathonsCleared > 0 ? 100 : 0}%; background:var(--red-light)"></div></div>
       `;
       card.addEventListener('click', () => { if (!currentUser) { toggleAuthenticationState(); return; } showScreen('practice'); executeSubjectProfiling(s.id); });
@@ -1052,7 +1290,7 @@ function initializePracticeRoutingView() {
         <div class="subject-progress-bar" style="background:rgba(84,122,165,0.2)"><div class="subject-progress-fill" style="width:100%; background:linear-gradient(90deg, var(--accent-core), var(--green-light))"></div></div>
       `;
       card.addEventListener('click', () => bootMixedInfiniteSession());
-    } else if (s.id === 'ultimate_bodmas') {
+    } else if (isMasteryDiscipline(s.id)) {
       const intData = state.subjects[s.id].integer;
       const decData = state.subjects[s.id].decimal;
       const cleared = intData.clearedLevels.length + decData.clearedLevels.length;
@@ -1108,7 +1346,7 @@ function executeSubjectProfiling(subjectId) {
   document.getElementById('levelSelectMsg').classList.add('hidden');
   document.getElementById('modeSelectTitle').textContent = profile.name;
 
-  if (subjectId === 'ultimate_bodmas') {
+  if (isMasteryDiscipline(subjectId)) {
     document.getElementById('modeBadgeInteger').textContent = `${intData.clearedLevels.includes(1) ? 'Mastery Cleared' : 'Incomplete'}`;
     document.getElementById('modeBadgeDecimal').textContent = `${decData.clearedLevels.includes(1) ? 'Mastery Cleared' : 'Incomplete'}`;
   } else {
@@ -1125,8 +1363,9 @@ function selectMode(mode) {
   document.getElementById('levelSelectMsg').classList.remove('hidden');
   document.getElementById('levelSelectTitle').textContent = `${profile.name} · ${mode === 'decimal' ? 'Decimal' : 'Integer'}`;
   
-  if (practiceSubject === 'ultimate_bodmas') {
-    document.getElementById('levelSelectSub').textContent = "50-Question configuration parameters with adaptive, structured self-correcting precision loops.";
+  if (isMasteryDiscipline(practiceSubject)) {
+    const qCount = fetchQuestionsPerSession(practiceSubject, 1);
+    document.getElementById('levelSelectSub').textContent = `${qCount}-Question configuration parameters with adaptive, structured self-correcting precision loops.`;
     buildUltimateBodmasSelector(practiceSubject, mode);
   } else {
     const modeData = state.subjects[practiceSubject][mode];
@@ -1143,7 +1382,7 @@ async function buildUltimateBodmasSelector(subjectId, mode) {
   let savedSession = null;
   if (currentUser) {
     try {
-      const savedDocRef = doc(db, "users", currentUser.uid, "suspended_sessions", `bodmas_${mode}`);
+      const savedDocRef = doc(db, "users", currentUser.uid, "suspended_sessions", `${subjectId}_${mode}`);
       const snap = await getDoc(savedDocRef);
       if (snap.exists()) {
         savedSession = snap.data();
@@ -1174,10 +1413,11 @@ async function buildUltimateBodmasSelector(subjectId, mode) {
 
   const row = document.createElement('div');
   row.className = `level-row ${savedSession ? '' : 'current'}`;
+  const qCount = fetchQuestionsPerSession(subjectId, 1);
   row.innerHTML = `
     <div class="level-num">New Run</div>
     <div class="level-desc" style="color:var(--white)">
-      50 Structured questions containing Brackets, Exponents, Division, Multiplication, Addition, Subtraction.
+      ${qCount} Structured questions with recursive correction loops for complete mastery.
     </div>
     <div class="level-status ${cleared ? 'cleared' : 'current'}">
       ${cleared ? 'Fully Mastered' : 'Active Channel'}
@@ -1224,8 +1464,8 @@ function bootExecutionSession(subjectId, mode, level) {
   const questions = [];
   
   for (let i = 0; i < total; i++) {
-    if (subjectId === 'ultimate_bodmas') {
-      const q = generateUltimateBodmasMatrix(mode, i + 1);
+    if (isMasteryDiscipline(subjectId)) {
+      const q = generateMasteryTopicQuestion(subjectId, mode, i + 1);
       q.id = `q_r1_${i+1}`;
       q.sourceQuestionId = q.id;
       q.roundNumber = 1;
@@ -1258,12 +1498,12 @@ function bootExecutionSession(subjectId, mode, level) {
 
   document.getElementById('metaSubject').textContent = discipline.name;
   document.getElementById('metaMode').textContent    = mode === 'decimal' ? 'Decimal' : 'Integer';
-  document.getElementById('metaLevel').textContent   = (subjectId === 'ultimate_bodmas') ? 'Round 1' : level;
+  document.getElementById('metaLevel').textContent   = isMasteryDiscipline(subjectId) ? 'Round 1' : level;
   document.getElementById('metaStreak').textContent  = 0;
   document.getElementById('metaScore').textContent   = `0.00`;
 
   const predictiveChip = document.getElementById('metaPredictiveQueueChip');
-  if (subjectId === 'ultimate_bodmas') {
+  if (isMasteryDiscipline(subjectId)) {
     document.getElementById('timerRingContainer').style.display = 'none';
     document.getElementById('bodmasSaveBtn').style.display = 'block'; // Display save parameters trigger button
     if (predictiveChip) {
@@ -1325,10 +1565,10 @@ async function saveAndSuspendBodmasSession(redirectAfterSave = false) {
     alert("Authentication validation required before database array sync.");
     return;
   }
-  if (!session || session.subject !== 'ultimate_bodmas') return;
+  if (!session || !isMasteryDiscipline(session.subject)) return;
 
   try {
-    const savedDocRef = doc(db, "users", currentUser.uid, "suspended_sessions", `bodmas_${session.mode}`);
+    const savedDocRef = doc(db, "users", currentUser.uid, "suspended_sessions", `${session.subject}_${session.mode}`);
     
     // Package continuous execution parameters
     const packagePayload = {
@@ -1358,7 +1598,7 @@ async function saveAndSuspendBodmasSession(redirectAfterSave = false) {
     // Safely update general account global state allocations up to current delta
     await saveStatePipeline();
     
-    alert("Ultimate BODMAS execution matrix saved to cloud successfully.");
+    alert(`${session.subjectName} mastery run saved to cloud successfully.`);
 
     // Clean tracking structures
     session = { subject: null, questions: [], answers: [] };
@@ -1407,7 +1647,7 @@ function resumeSuspendedBodmasSession(savedSessionData) {
 
   // Purge suspended instance document path completely to avoid multi-instance logic loops
   if (currentUser) {
-    const savedDocRef = doc(db, "users", currentUser.uid, "suspended_sessions", `bodmas_${session.mode}`);
+    const savedDocRef = doc(db, "users", currentUser.uid, "suspended_sessions", `${session.subject}_${session.mode}`);
     deleteDoc(savedDocRef).catch(e => console.error("Database structural garbage collector deferred:", e));
   }
 
@@ -1439,7 +1679,7 @@ function executeDisplayLoop() {
   const q = session.questions[session.current];
   const total = session.questions.length;
 
-  if (session.subject === 'ultimate_bodmas') {
+  if (isMasteryDiscipline(session.subject)) {
     const roundPrefix = session.currentRound === 1 ? 'Round 1' : (session.currentRound === 2 ? 'Round 2 (Practice)' : `Round ${session.currentRound} (Mastery)`);
     document.getElementById('questionNum').textContent  = `${roundPrefix} — Question ${session.current + 1} of ${total}`;
     document.getElementById('metaLevel').textContent = session.currentRound === 1 ? `Round 1` : `Round ${session.currentRound}`;
@@ -1454,7 +1694,7 @@ function executeDisplayLoop() {
   document.getElementById('questionExpr').textContent = q.expr;
 
   const tagEl = document.getElementById('questionTag');
-  if (session.subject === 'ultimate_bodmas' && q.tag) {
+  if (isMasteryDiscipline(session.subject) && q.tag) {
     tagEl.textContent = q.tag;
     tagEl.style.display = 'inline-block';
     if (q.tag === "Pen is allowed") {
@@ -1477,7 +1717,7 @@ function executeDisplayLoop() {
   inp.focus();
   session.questionStart = Date.now();
   
-  if (session.subject !== 'ultimate_bodmas') {
+  if (!isMasteryDiscipline(session.subject)) {
     engageTimerSubsystem();
   }
 }
@@ -1523,7 +1763,7 @@ function processTimeoutFault() {
 
   const ansObj = { chosenValue: null, statusCorrect: false, expression: q.expr, actualValue: q.answer, scoreMetrics, questionObj: q };
   session.answers.push(ansObj);
-  if (session.subject === 'ultimate_bodmas') {
+  if (isMasteryDiscipline(session.subject)) {
     session.masteryAnswers.push(ansObj);
   }
   session.times.push(dt);
@@ -1547,7 +1787,7 @@ function submitAnswer() {
   const q = session.questions[session.current];
   const dt = Date.now() - session.questionStart;
 
-  if (session.subject !== 'ultimate_bodmas') {
+  if (!isMasteryDiscipline(session.subject)) {
     clearInterval(session.timerInterval);
   }
   const correct = isAnswerCorrect(userVal, q.answer, session.isMixed ? q.actualMode : session.mode);
@@ -1585,7 +1825,7 @@ function submitAnswer() {
 
   const ansObj = { chosenValue: userVal, statusCorrect: correct, expression: q.expr, actualValue: q.answer, scoreMetrics, questionObj: q };
   session.answers.push(ansObj);
-  if (session.subject === 'ultimate_bodmas') {
+  if (isMasteryDiscipline(session.subject)) {
     session.masteryAnswers.push(ansObj);
   }
   session.times.push(dt);
@@ -1636,7 +1876,7 @@ function recomputeLifetimeAverages() {
 function advanceSessionQueue() {
   session.current++;
   if (session.current >= session.questions.length) {
-    if (session.subject === 'ultimate_bodmas') {
+    if (isMasteryDiscipline(session.subject)) {
       evaluateUltimateBodmasRound();
     } else {
       terminateProcessingSession();
@@ -1667,7 +1907,7 @@ function evaluateUltimateBodmasRound() {
     incorrectQuestions.forEach((ans, index) => {
       const parentQ = ans.questionObj;
       for (let k = 0; k < 2; k++) {
-        const nextQ = generateUltimateBodmasMatrix(session.mode, null, parentQ.templateId);
+        const nextQ = generateMasteryTopicQuestion(session.subject, session.mode, null, parentQ.templateId);
         nextQ.id = `q_r${session.currentRound}_idx_${index}_k_${k}`;
         nextQ.sourceQuestionId = parentQ.sourceQuestionId;
         nextQ.roundNumber = session.currentRound;
@@ -1691,7 +1931,7 @@ function refreshLiveSessionMetaChips() {
   document.getElementById('metaStreak').textContent = session.streak;
   document.getElementById('metaScore').textContent = session.sessionEarnedPoints.toFixed(2);
   
-  if (session.subject === 'ultimate_bodmas') {
+  if (isMasteryDiscipline(session.subject)) {
     const currentRoundErrors = session.answers.filter(x => !x.statusCorrect).length;
     document.getElementById('metaPredictiveQueue').textContent = `${currentRoundErrors * 2} Qs`;
   }
@@ -1701,13 +1941,13 @@ function refreshLiveSessionMetaChips() {
 // SYSTEM CLOSURES & DATA PIPELINES
 // ============================================================
 async function terminateProcessingSession() {
-  if (session.subject !== 'ultimate_bodmas') {
+  if (!isMasteryDiscipline(session.subject)) {
     clearInterval(session.timerInterval);
   }
 
   let total, correct, accuracy, isPass;
   
-  if (session.subject === 'ultimate_bodmas') {
+  if (isMasteryDiscipline(session.subject)) {
     total = session.masteryAnswers.length;
     correct = session.masteryAnswers.filter(x => x.statusCorrect).length;
     accuracy = session.roundHistory[0]?.total ? Math.round((session.roundHistory[0].correct / session.roundHistory[0].total) * 100) : 0;
@@ -1721,7 +1961,7 @@ async function terminateProcessingSession() {
 
   const elapsed  = Date.now() - session.startTime;
   const correctTimes = session.times.filter((_, i) => {
-    if (session.subject === 'ultimate_bodmas') return session.masteryAnswers[i]?.statusCorrect;
+    if (isMasteryDiscipline(session.subject)) return session.masteryAnswers[i]?.statusCorrect;
     return session.answers[i]?.statusCorrect;
   });
   const meanTime = correctTimes.length ? Math.round(correctTimes.reduce((a, b) => a + b, 0) / correctTimes.length) : 0;
@@ -1753,7 +1993,7 @@ async function terminateProcessingSession() {
   if (state.history.length > 80) state.history.shift();
 
   if (idbDb) {
-    const activeAnswers = session.subject === 'ultimate_bodmas' ? session.masteryAnswers : session.answers;
+    const activeAnswers = isMasteryDiscipline(session.subject) ? session.masteryAnswers : session.answers;
     for (let i = 0; i < activeAnswers.length; i++) {
       const ans = activeAnswers[i];
       if (!ans) continue;
@@ -1865,7 +2105,7 @@ function displayTerminalOverlay(isPass, correct, total, accuracy, meanTime, peak
 
   const heading = document.getElementById('resultHeading');
 
-  if (pastSubject === 'ultimate_bodmas') {
+  if (isMasteryDiscipline(pastSubject)) {
     document.getElementById('resultStatus').textContent  = 'Mastery Verification Report';
     heading.textContent = 'Mastery Achieved.';
     heading.className   = `result-heading success`;
@@ -1916,11 +2156,11 @@ function displayTerminalOverlay(isPass, correct, total, accuracy, meanTime, peak
 
   const primary = document.createElement('button');
   primary.className = 'btn-primary';
-  primary.textContent = pastSubject === 'ultimate_bodmas' ? 'Initialize New Marathon' : (isPass ? 'Advance Tier Run' : 'Re-verify Parameters');
+  primary.textContent = isMasteryDiscipline(pastSubject) ? 'Initialize New Marathon' : (isPass ? 'Advance Tier Run' : 'Re-verify Parameters');
   primary.onclick = () => {
     overlay.className = 'result-overlay';
     const targetMode = practiceMode || 'integer';
-    const nextLv = (pastSubject === 'ultimate_bodmas') ? 1 : (isPass ? state.subjects[pastSubject][targetMode].level : session.level);
+    const nextLv = isMasteryDiscipline(pastSubject) ? 1 : (isPass ? state.subjects[pastSubject][targetMode].level : session.level);
     window.bootExecutionSession(pastSubject, targetMode, nextLv);
   };
   btns.appendChild(primary);
@@ -2134,7 +2374,7 @@ function renderBreakdownCards(recs) {
       card.innerHTML = `
         <div class="breakdown-header">
           <div class="breakdown-name">${s.name}</div>
-          <div class="breakdown-level">${s.id === 'ultimate_bodmas' ? 'Mastery Engine' : `Lv ${intData.level} / ${decData.level}`}</div>
+          <div class="breakdown-level">${isMasteryDiscipline(s.id) ? 'Mastery Engine' : `Lv ${intData.level} / ${decData.level}`}</div>
         </div>
         <div class="breakdown-mode-tabs">
           <button class="breakdown-mode-tab active" onclick="this.parentElement.querySelectorAll('.breakdown-mode-tab').forEach(b=>b.classList.remove('active'));this.classList.add('active');this.closest('.breakdown-card').querySelector('.mode-rows-integer').style.display='';this.closest('.breakdown-card').querySelector('.mode-rows-decimal').style.display='none';">Integer</button>
